@@ -1,0 +1,50 @@
+#!/usr/local/bin/expect -f
+# 
+# Essentially performs a file transfer, the hard way.
+# File should be uuencoded if you're going over telnet. rlogin
+# is not sensitive to binary data like telnet is.
+# I use expect to send a uuencoded file a line at a time
+# over telnet. The remote host is placed into a read on
+# standard in (using cat) and then expect is used to
+# repeatedly send data which winds up in the file.
+# 
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+# set filetosend "fifo_maOut.txt"
+set filetosend "kudevstuff.tar.Z.encode"
+
+set timeout 180
+spawn rtelnet 141.205.5.31
+expect "*login:*"
+send howie\n
+expect "*Password:*"
+send lmti500\n
+
+expect "*% *"
+
+send "date\n"
+
+send "cat > $filetosend\n" 
+
+sleep 2
+set f [open "$filetosend" r]
+
+set linecnt 0
+while { [gets $f line] >= 0 } {
+    send "$line\n"
+    incr linecnt
+    if { $linecnt % 50 == 0 } {
+        puts "line count = $linecnt"
+    }
+}
+close $f
+
+#send a ctrl-d to close stdin
+send \004
+
+# Do your stuff
+interact
+

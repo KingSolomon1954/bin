@@ -1,0 +1,47 @@
+# Adds the following functions to my environment:
+#
+#	setdevenv()
+#	unsetdevenv()
+#	pcd()
+#	setimpactenv()
+#	unsetimpactenv()
+#
+#	idev()
+#	irun()
+#
+# -------------------------------------------------------
+
+. do_dev
+. do_impact
+
+function idev ()
+{
+    if [ ! "${IMP_PATH}" = "" ]; then
+        unsetimpactenv
+    fi
+
+    case $(uname) in
+        "SunOS")  p=sol;;
+        "IRIX64") p=irix;;
+        "Linux") p=linux;;
+        *) echo "Shell function \"idev\" does not know what to do with: $(uname)";;
+    esac
+    
+    PLAT_0=${p}
+    PLAT_1=sol
+    PLAT_2=irix
+    PLAT_3=linux
+    unset p
+
+    setdevenv /proj/impact/${LOGNAME}/cdev ${PLAT_0}
+    cd ${DEV_WORK_TREE}
+}
+
+function irun ()
+{
+    if [ ! "${DEV_WORK_TREE}" = "" ]; then
+        unsetdevenv
+    fi
+    setimpactenv /proj/impact/${LOGNAME}/cdev/usrenv/install
+    cd /proj/impact/${LOGNAME}/cdev/usrenv/install
+}

@@ -1,0 +1,209 @@
+# --------------------------------------------------
+#
+# Script to setup development environment for
+# Sys500 builds
+#
+# Some values are duplicated in the corresponding
+# clean up script, undo_500, so these must agree.
+#
+# --------------------------------------------------
+
+# Clean up _any_ previous environment
+. undo_all
+
+# --------------------------------------------------
+#
+# Determine machine architecture in order to define
+# platform specific setup; like the proper vxWorks host
+# and target. sys500 utilities expect "PLATFORM" to
+# be uppercase.
+
+plat=$(uname)
+
+case "$plat" in
+	"AIX")
+		declare -x PLATFORM=AIX
+		;;
+	"ULTRIX")
+		declare -x PLATFORM=mips
+		;;
+	"HP-UX")
+		declare -x PLATFORM=hp
+		;;
+	"OSF1")
+		declare -x PLATFORM=alpha
+		;;
+	"IRIX")
+		declare -x PLATFORM=sgi
+		;;
+	"SunOS")
+		# Check for Solaris 
+		osrev=$(uname -r | cut -c1)
+		if [ $osrev = "5" ]; then
+			declare -x PLATFORM=solaris
+		else
+			declare -x PLATFORM=sparc
+		fi
+		unset osrev
+		;;
+	*)
+		echo "Unsupported PLATFORM: $plat"
+		return
+		;;
+esac
+
+unset plat
+# declare -x TREE500=${HOME}/sys500/tree_${PLATFORM}
+declare -x TREE500=/usr/users/sys500/${PLATFORM}
+declare -x TeleUSE=/usr/teleuse
+
+case "$PLATFORM" in
+	solaris)
+		source sys500env
+		declare -x VX_HOST_TYPE=solaris
+		declare -x VX_CPU_FAMILY=sparc
+#		declare -x VX_CPU_FAMILY=68k
+		declare -x VX_VW_BASE=${SYS500}/gen/sw/vxworks
+		declare -x VX_WV_BASE=${SYS500}/gen/sw/vxworks/windview
+		declare -x GCC_EXEC_PREFIX=/usr/gnu/lib/gcc-lib
+#		declare -x LM_LICENSE_FILE=/etc/licenses/license.dat
+		declare -x LM_LICENSE_FILE=/opt/SUNWspro/bin/license.dat
+		declare -x LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/dt/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${TeleUSE}/lib
+		;;
+	sparc)
+		source sys500env
+		declare -x VX_HOST_TYPE=sun4
+		declare -x VX_CPU_FAMILY=68k
+		if [ -e /usr/users/sys500/sparc/sw/p550/gnu040/vxworks ]; then
+			declare -x VX_VW_BASE=/usr/users/sys500/sparc/sw/p550/gnu040/vxworks
+		else
+			declare -x VX_VW_BASE=/usr/users/sys500/gen/sw/vxworks
+		fi
+		declare -x VX_WV_BASE=${VX_VW_BASE}/windview
+		declare -x GCC_EXEC_PREFIX=/usr/gnu/lib/gcc-lib
+		declare -x LM_LICENSE_FILE=/etc/licenses/license.dat
+		declare -x LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/dt/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${TeleUSE}/lib
+		;;
+	sgi)
+		source sys500env
+		declare -x GCC_EXEC_PREFIX=/usr/gnu/lib/gcc-lib
+		declare -x LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/dt/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${TeleUSE}/lib
+		;;
+	mips)
+		source sys500env
+		declare -x GCC_EXEC_PREFIX=/usr/gnu/lib/gcc-lib
+		declare -x LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/dt/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${TeleUSE}/lib
+		;;
+	AIX)
+		source sys500env
+		declare -x GCC_EXEC_PREFIX=/usr/gnu/lib/gcc-lib
+		declare -x LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/dt/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${TeleUSE}/lib
+		;;
+	hp)
+		source sys500env
+		declare -x GCC_EXEC_PREFIX=/usr/gnu/lib/gcc-lib
+		declare -x LPATH="/lib:/usr/lib:/usr/lib/X11R5:/usr/lib/Motif1.2"
+		;;
+	alpha)
+		source sys500env
+		declare -x LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/dt/lib
+		LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${TeleUSE}/lib
+		;;
+	*)
+		echo "Unsupported platform: $PLATFORM"
+		unset TREE500
+		return
+		;;
+esac
+
+unset sys500env
+
+typeset -x FPP_ROOT=${HOME}/sys500/fpproot/curdev/fpplib
+typeset -x FPP_LIB=${HOME}/sys500/fpproot/curdev/lib
+typeset -x PSP_BOOT=/usr/users/sys500/solaris/p550/fpp3mezz/vxWPspFlashSt.sym
+
+echo "FPP_ROOT=${FPP_ROOT}"
+echo "FPP_LIB=${FPP_LIB}"
+echo "PSP_BOOT=${PSP_BOOT}"
+echo "SYS500=${SYS500}"
+echo "SYS500_ROOT_DIR=${SYS500_ROOT_DIR}"
+
+# --------------------------------------------------
+
+# setup a CDPATH for the project
+
+declare SWTREE=${SYS500}/gen/sw
+declare S1=$SWTREE/vxworks
+declare S2=$SWTREE/p550
+declare S3=$SWTREE/p550/src
+declare S4=$SWTREE/p550/src/modules
+declare S5=$SWTREE/p550/srcfpp3
+declare S6=$SWTREE/src
+declare S7=$SWTREE/src/fpp
+declare S8=$SWTREE/src/fpp/stdalg
+
+CDPATH=.:$SWTREE:$S1:$S2:$S3:$S4:$S5:$S6:$S7:$S8
+
+unset S1 S2 S3 S4 S5 S6 S7 S8
+unset SWTREE
+
+
+# --------------------------------------------------
+
+declare  addpath=${HOME}/programs/scripts
+addpath=$addpath:${SYS500_ROOT_DIR}/sw/bin
+addpath=$addpath:${SYS500_ROOT_DIR}/sw/bin/test
+addpath=$addpath:${SYS500_ROOT_DIR}/sw/tools
+addpath=$addpath:${SYS500}/gen/sw/scripts
+addpath=$addpath:${SYS500}/gen/sw/vxworks/bin/${PLATFORM}
+addpath=$addpath:${SYS500}/gen/sw/vxworks/${PLATFORM}.${VX_CPU_FAMILY}/bin
+addpath=$addpath:/usr/xl/bin
+addpath=$addpath:/usr/lib
+addpath=$addpath:/lib
+addpath=$addpath:/sys500/tools/bin/${PLATFORM}
+addpath=$addpath:${TeleUSE}/bin
+addpath=$addpath:${SYS500_ROOT_DIR}/sw/metrica/tqlclients/bin
+addpath=$addpath:${SYS500}/gen/sw/vxworks/unsupported/tcl
+
+PATH=$PATH:$addpath
+unset addpath
+
+# --------------------------------------------------
+
+# Add the VxWorks man path and project man directory
+
+# Use this for now, until I get my tree setup properly
+
+alias vwman="man -M ${SYS500}/gen/sw/vxworks/man"
+
+declare     addmanpath=${SYS500}/gen/sw/man
+addmanpath=$addmanpath:${SYS500}/gen/sw/p550/man
+addmanpath=$addmanpath:${SYS500}/gen/sw/vxworks/man
+MANPATH=$MANPATH:$addmanpath
+unset addmanpath
+
+# Use this after my tree is set up
+# 
+# alias vwman="man -M ${TREE500}/sw/vxworks/man"
+# 
+# declare     addmanpath=${VX_VW_BASE}/man
+# addmanpath=$addmanpath:${TREE500}/sw/man
+# addmanpath=$addmanpath:${TREE500}/sw/p550/man
+# addmanpath=$addmanpath:${TREE500}/sw/vxworks/man
+# MANPATH=$MANPATH:$addmanpath
+# unset addmanpath
+
+# --------------------------------------------------
+
+# end file

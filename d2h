@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# FILE
+#       d2h - decimal to hex conversion
+#
+# SYNOPSIS
+#       d2h <decimal number> ...
+#
+# DESCRIPTION
+#	Converts numbers from decimal to hex
+#       
+# OPTIONS
+#       None
+#
+# EXAMPLE
+#       d2h 54321
+#
+# ENVIRONMENT
+#       None.
+#
+# -----------------------------------------------------------
+
+conv2dec ()
+{
+	# Use bc to convert from decimal to hex
+	{
+		echo "obase = 16"
+		echo "a = $1"
+		echo "a"
+	} | bc
+}
+
+
+while [ $# != 0 ]
+do
+	conv2dec $1
+
+	if [ $# != 0 ]; then
+		shift
+	fi
+done

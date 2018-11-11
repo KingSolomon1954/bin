@@ -1,0 +1,35 @@
+#
+# $1 is how many times
+# 
+# Examples:
+#
+# spike 10
+#
+# -----------------------------------------------------------------
+
+PORT="23"
+let count=1
+# while ((count < $1)); do
+while ((count > 0)); do
+    echo; echo ${count} $(date)
+    # iperf -u -t 10 -b 15000000 -p ${PORT} -c 112.140.185.246
+    iperf -p ${PORT} -c 218.59.184.154
+    let count=count+1
+    # sleep 5
+done
+
+
+#    if [ "${PORT}" = "80" ]; then
+#        PORT="995";
+#    elif [ "${PORT}" = "995" ]; then
+#        PORT="993";
+#    elif [ "${PORT}" = "993" ]; then
+#        PORT="22";
+#    else
+#        PORT="80";
+#    fi    
+#done
+
+# -----------------------------------------------------------------
+
+# end file

@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# FILE
+#	eod - end of day
+#
+# SYNOPSIS
+#	eod ["L"|"NL"]
+#
+# DESCRIPTION
+#	Clocks out at the end of the day. Writes time into
+#	the time log and calculates how long since clock in.
+#	Depends on having clocked in the morning and checks
+#	for todays date.
+# 
+#	Expects timelog file format consisting of these 3 fields:
+#	<Fri  01/13/95 17:48>
+#	This format is obtained from a call to date like this
+#	date "+%a  %D %H:%M"
+#
+# OPTIONS
+#	L  - indicates if a 1 hour lunch was taken
+#	NL - indicate that no lunch was taken
+#	defaults to "L" if no args are supplied
+#
+# EXAMPLE
+#	eod
+# 
+# ENVIRONMENT
+#	No environment variable expected.
+#
+# BUGS
+#
+# -----------------------------------------------------------
+
+lunch=${1-"L"}
+log=~/admin/timecard/timelog
+end_hour=$(date "+%H")
+end_minute=$(date "+%M")
+weekday=$(date "+%a")
+daynum=$(date "+%d")
+month=$(date "+%m")
+year=$(date "+%y")
+date_today=$(date "+%a  %D")
+
+# Only if we signed in today.
+if grep "$date_today" $log > /dev/null ; then
+
+	# Formulate a regular expression to look up todays date
+	# in the timelog file. Used by the awk program in a bit.
+	# Need to escape the slashes, so it must be built
+	# special. Could do this directly in awk, but the syntax
+	# is revolting. In awk it would be like this 
+	# /'"$weekday"'"  "'"$month"'\/'"$daynum"'\/'"$year"'/
+
+	regexp_date="$weekday  $month\/$daynum\/$year"
+
+nawk '
+	BEGIN {
+	}
+
+	# Echo all lines except the one we need to change
+	$0 !~ /'"$regexp_date"'/ {
+		print $0
+	}
+
+	/'"$regexp_date"'/ {
+		if (NF > 3) {
+			print $0
+			next	# Already have stop and duration time
+		}
+		# get starting hour and minute from field #3
+		split($3,start_time,":")
+		start_hour=start_time[1]
+		start_minute=start_time[2]
+		# shell variables into awk
+		end_hour='"$end_hour"'
+		end_minute='"$end_minute"'
+		duration_hours=end_hour-start_hour
+		duration_minutes=end_minute-start_minute
+		if (duration_minutes < 0) {
+			duration_minutes += 60
+			duration_hours--
+		}
+		duration=duration_hours + (duration_minutes / 60)
+		# Put a leading 0 for format, awk stripped it off
+		if (end_hour < 10)
+			end_hour="0"end_hour
+		if (end_minute < 10)
+			end_minute="0"end_minute
+#		print $0, end_hour ":" end_minute, duration_hours, "hours", \
+#			duration_minutes, "mins", duration
+#
+		lunch="'"$lunch"'"
+		printf("%s %s:%s %2d hours %2d mins %4.1f %s\n", $0,
+			end_hour, end_minute,
+			duration_hours, duration_minutes,
+			duration, lunch)
+	}
+
+	END {
+	}
+' $log > /tmp/newlog$$
+	mv /tmp/newlog$$ $log
+	echo "Done. Updated $log"
+else
+	echo "Whoops, forgot to sign in today"
+fi
+
+# I like to see it most all the time
+tail $log
+
+# end file
+

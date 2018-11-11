@@ -1,0 +1,5 @@
+#!/bin/sh
+typeset -x DISPLAY=$(pppgethost):0
+# echo "DISPLAY=${DISPLAY} xon $*" > /tmp/xon
+# date >> /tmp/xon
+exec xon $*

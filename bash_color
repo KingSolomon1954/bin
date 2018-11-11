@@ -1,0 +1,145 @@
+Article 21276 of comp.unix.shell:
+Path: ltis.loral.com!wdl1.wdl.loral.com!enews.sgi.com!sgigate.sgi.com!swrinde!gatech!news.sprintlink.net!news.onramp.net!usenet
+From: Steve Cowles <scowles@onramp.net>
+Newsgroups: comp.unix.shell
+Subject: Re: bash question
+Date: Tue, 25 Jul 95 21:52:22 GMT
+Organization: Cowles & Associates, INC.
+Lines: 100
+Message-ID: <N.072595.145222.57@central05.onramp.net>
+NNTP-Posting-Host: central05.onramp.net
+X-Newsreader: Quarterdeck Message Center [1.0]
+
+
+    > Hi All,
+    > 
+    > In the bash shell, how can I use an alias to print the current working
+    > directory after issuing a 'cd' command?
+    > 
+    > In the C shell the alias is:
+    > 
+    > alias cd            'cd \!*;echo $cwd'
+    > 
+    > Thus 'cd' returns your home directory path on the line before
+    > the prompt. 'cd ~/mentor' prints '/homedir/gbr/mentor' on the line
+    > before the prompt, etc.
+    > 
+    > Help to put me out of my misery :-)
+    > 
+    > Thanks in advance,
+    > 
+    > Geoff Rubner.
+    > 
+
+This should put you out of your misery!. I have included examples for color 
+prompts also. Un-Comment the example that fits your requirements.
+
+Steve Cowles
+scowles@onramp.net
+
+[snip] from '.profile'
+------------------------------------------------------------------------
+###### Environment Stuff ######
+export TERM=console
+export HOSTNAME=`hostname`
+
+###### Foreground Colors ######
+ESCAPE="\033["
+BLACK_F="${ESCAPE}30m"
+RED_F="${ESCAPE}31m"
+GREEN_F="${ESCAPE}32m"
+YELLOW_F="${ESCAPE}33m"
+BLUE_F="${ESCAPE}34m"
+MAGENTA_F="${ESCAPE}35m"
+CYAN_F="${ESCAPE}36m"
+WHITE_F="${ESCAPE}37m"
+
+############## Standard Prompt, No Color #####################
+#PS1="$ "
+
+############## Prompt Directory, No Color ####################
+#PS1=``'[${PWD}] $ '``
+
+############## Prompt User,Directory, No Color ###############
+#PS1=``'(${USER}) - [${PWD}] $ '``
+
+############## Prompt Node,Directory, No Color ###############
+#PS1=``'(${HOSTNAME}) - [${PWD}] $ '``
+
+############## Prompt Directory, One Color ###################
+#export PS1=`\
+#echo "${CYAN_F}"    `'[${PWD}]'`  \
+#echo "${CYAN_F}"    `' $ '`       \
+#`
+
+############## Prompt User,Directory, One Color ##############
+#export PS1=`\
+#echo "${CYAN_F}"    `'(${USER})'` \
+#echo "${CYAN_F}"    `' - '`       \
+#echo "${CYAN_F}"    `'[${PWD}]'`  \
+#echo "${CYAN_F}"    `' $ '`       \
+
+############## Prompt Node,Directory, One Color ##############
+#export PS1=`\
+#echo "${CYAN_F}"    `'(${HOSTNAME})'` \
+#echo "${CYAN_F}"    `' - '`       \
+#echo "${CYAN_F}"    `'[${PWD}]'`  \
+#echo "${CYAN_F}"    `' $ '`       \
+#`
+
+############## Prompt Directory, Multi-Color ###################
+#export PS1=`\
+#echo "${CYAN_F}"    `'[${PWD}]'`  \
+#echo "${GREEN_F}"   `' $ '`       \
+#`
+
+############## Prompt User,Directory, Multi-Color ##############
+#export PS1=`\
+#echo "${CYAN_F}"    `'(${USER})'` \
+#echo "${WHITE_F}"   `' - '`       \
+#echo "${YELLOW_F}"  `'[${PWD}]'`  \
+#echo "${GREEN_F}"   `' $ '`       \
+#`
+
+############## Prompt User,Node,Directory, Multi-Color #########
+#export PS1=`\
+#echo "${CYAN_F}"    `'(${USER} on ${HOSTNAME})'` \
+#echo "${WHITE_F}"   `' - '`       \
+#echo "${YELLOW_F}"  `'[${PWD}]'`  \
+#echo "${GREEN_F}"   `' $ '`       \
+#`
+
+
+
+
+My first attempt at replying to an article so bear with me ...
+
+To avoid the LONG pathnames in your PS1, try this if you're running an
+'xterm' session (put it in your .kshrc file so it re-evaluates properly):
+
+title_on=`echo "\033]0;"`
+title_off=`echo "\007"`
+if [ "$TERM" = "xterm" ]; then
+	TITLE=${title_on}${SYS}:'$PWD'$title_off
+        PS1="${TITLE}$bold$SYS$sgr0$ "
+else
+	PS1=whatever you normally want when not in 'xterm'
+fi
+
+If not intuitively obvious, $SYS has previously been set to the hostname and
+$bold and $sgr0 were set to the results of `tput bold` and `tput sgr0`
+
+This results in your system name and current directory appearing on the title
+bar of your window while just your system name appears on your command line
+(but in BOLD to standout!)
+
+Enjoy.
+
+Gary M. Seubert - Citicorp, NY, NY
+gary.seubert@citicorp.com
+
+UNIX Class of '73 B.V. ('B'efore 'V'i)
+
+
+
+

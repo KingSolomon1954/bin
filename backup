@@ -1,0 +1,87 @@
+# Use rsync to backup home directories to
+# external USB backup drive
+
+# ------------------------------------------------------------
+
+main ()
+{
+    wantHome=false
+    wantMedia=false
+    
+    while [ $# -ne 0 ]; do
+        case $1 in
+        -home)
+            wantHome=true;;
+        -media)
+            wantMedia=true;;
+        -n)
+            rsyncFlag=n;;
+        -all)
+            wantHome=true
+            wantMedia=true;;
+        *)
+            usage;;
+        esac
+        shift
+    done
+    
+    dstDir=/cygdrive/f/home/howie
+    logDir=${HOME}/log
+    
+    if [ ! -d ${dstDir} ]; then
+        echo "Backup location doesn't exist: ${dstDir}"
+        exit 0
+    fi
+    
+    # Backup home directory
+    if [ ${wantHome} = true ]; then
+        logFile=${logDir}/backup_home.log
+        if [ ! -d ${dstDir} ]; then
+            echo "Backup location doesn't exist: ${dstDir}"
+            echo "Backup location doesn't exist: ${dstDir}" > ${logFile}
+        else
+            startTime=$(date)
+            rsync -${rsyncFlag}ruv --exclude=/media --del ${HOME}/ ${dstDir}  > ${logFile} 2>&1
+            stopTime=$(date)
+            echo "Start: ${startTime}"
+            echo "Start: ${startTime}" >> ${logFile}
+            echo " Stop: ${stopTime}"
+            echo " Stop: ${stopTime}"  >> ${logFile}
+        fi
+    fi
+    
+    # Backup media directory
+    if [ ${wantMedia} = true ]; then
+        logFile=${logDir}/backup_media.log
+        if [ ! -d ${dstDir} ]; then
+            echo "Backup location doesn't exist: ${dstDir}"
+            echo "Backup location doesn't exist: ${dstDir}" > ${logFile}
+        else
+            startTime=$(date)
+            rsync -${rsyncFlag}ruv --del ${HOME}/media/ ${dstDir}/media > ${logFile} 2>&1
+            stopTime=$(date)
+            echo "Start: ${startTime}"
+            echo "Start: ${startTime}" >> ${logFile}
+            echo " Stop: ${stopTime}"
+            echo " Stop: ${stopTime}"  >> ${logFile}
+        fi
+    fi
+}
+
+# ------------------------------------------------------------
+ 
+usage ()
+{
+    echo "Unrecognized argument"
+    echo "    backup -home | -media | -all [-n]"
+    echo "           -n = do not execute, just show what would happen"
+    exit 0
+}
+
+# ------------------------------------------------------------
+#
+# Invoke main body of script (never returns). This must appear 
+# at the bottom of the script, so all functions which main() 
+# calls are visible to main().
+#
+main "$@"

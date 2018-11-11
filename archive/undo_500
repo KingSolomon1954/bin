@@ -1,0 +1,113 @@
+# --------------------------------------------------
+#
+# Script to clean up do_500 environment
+#
+# --------------------------------------------------
+
+# If TREE500 is undefined then we have no need to clean
+# up a sys500 environment.
+
+if [ -z $TREE500 ]; then
+	return
+fi
+
+# Clear 500 stuff out of $PATH and $MANPATH. Run it
+# through sed. We use the "?" for the sed substitution
+# delimiter because pathnames have slashes.
+# So ?? means substitute nothing.
+
+PATH=$( echo $PATH    | sed						\
+	-e "s?:*${HOME}/programs/scripts??"				\
+	-e "s?:*${SYS500_ROOT_DIR}/sw/bin??"				\
+	-e "s?:*${SYS500_ROOT_DIR}/sw/bin/test??"			\
+	-e "s?:*${SYS500_ROOT_DIR}/sw/tools??"				\
+	-e "s?:*${SYS500}/gen/sw/scripts??"				\
+	-e "s?:*${SYS500}/gen/sw/vxworks/bin/${PLATFORM}??"		\
+	-e "s?:*${SYS500}/sw/vxworks/${PLATFORM}\.${VX_CPU_FAMILY}/bin??"	\
+	-e "s?:*/usr/xl/bin??"						\
+	-e "s?:*/usr/lib??"						\
+	-e "s?:*/lib??g"						\
+	-e "s?:*/sys500/tools/bin/${PLATFORM}??"			\
+	-e "s?:*${TeleUSE}/bin??"					\
+	-e "s?:*${SYS500_ROOT_DIR}/sw/metrica/tqlclients/bin??"		\
+	-e "s?:*${TREE500}/sw/vxworks/unsupported/tcl??" )
+
+# Get rid of possible trailing colon.
+PATH=${PATH%:}
+
+MANPATH=$( echo $MANPATH | sed						\
+	-e "s?:*${SYS500}/gen/sw/man??"					\
+	-e "s?:*${SYS500}/gen/sw/p550/man??"				\
+	-e "s?:*${SYS500}/gen/sw/vxworks/man??" )
+
+MANPATH=$(echo $MANPATH | sed -e "s?/vol/netgroup/gnats/gnats-3.2/man:*??" )
+# Get rid of possible trailing colon.
+MANPATH=${MANPATH%:}
+
+# No need to undefine CDPATH since the next project will
+# redefine it.
+
+unalias vwman
+
+unset VX_HOST_TYPE
+unset VX_CPU_FAMILY
+unset VX_VW_BASE
+unset VX_WV_BASE
+unset GCC_EXEC_PREFIX
+unset LM_LICENSE_FILE
+
+LD_LIBRARY_PATH=$(echo $LD_LIBRARY_PATH | sed				\
+	-e "s?:*/usr/lib??"						\
+	-e "s?:*/usr/dt/lib??"						\
+	-e "s?:*${TeleUSE}/lib??" )
+
+# Get rid of possible trailing colon.
+LD_LIBRARY_PATH=${LD_LIBRARY_PATH%:}
+
+unset SYS500
+unset SYS500_ROOT_DIR
+unset FPP_ROOT
+unset PSP_BOOT
+unset FPP_LIB
+unset UNIFY
+unset W500_BITMAP_PATH
+unset XLINCLUDE
+unset MDL_PATH
+unset DBPATH
+unset UIDPATH
+unset SYS500_DATAFILE_GROUPS
+unset MON1553_REPORT_DIR
+unset XPIXMAPDIR
+unset SYS500_CONFIG_PATH
+unset SYS500_SPOOLFILE_DIR
+unset XAPPLRESDIR
+# unset XENVIRONMENT
+
+unalias wappl
+
+unset TeleUSE
+unset XLDEFCHIP
+unset XLBIN
+unset XLLIBRARY
+unset DB_PRINTER
+unset PLOT_PRINTER
+unset SYS500_XDPR_DEVICE
+unset ERROR_TRACE
+unset LOG_PREFIX
+unset ACCESS
+
+#
+# Metrica
+#
+unset TQL_SERVER_DIR
+unset TQL_CLIENT_DIR
+unset QYUSER
+unset QYHOST
+
+unset SCSI_HOME
+unset TREE500
+unset PLATFORM
+
+# --------------------------------------------------
+
+# end file

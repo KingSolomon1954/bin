@@ -1,0 +1,28 @@
+#!/usr/local/bin/expect -f
+#
+# Tips into Proswitch #7  (128.10.1.107)
+#
+# ------------------------------------------------
+
+# Uncomment the following for debug
+# exp_internal 1
+
+spawn rlogin nacra
+expect {howie@nacra:~>}
+send "tip pswtty0\r"
+expect "connected\r"
+send "\r"
+expect	{
+	"\\-\>" {send "tyBackspaceSet(0x7f)\r"}
+	"psMon \>" {
+                send "0\r\r"
+                send "tyBackspaceSet(0x7f)\r"
+        }
+	timeout {puts "Did not get VxWorks prompt!"}
+}
+interact
+
+
+# farstar  128.10.1.1
+# einstein 128.1.2.8
+# nacra    128.1.2.6	128.11.1.2

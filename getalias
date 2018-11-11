@@ -1,0 +1,41 @@
+#!/bin/bash
+
+aliasFile=/vol/sysadmin/rdist/aliases
+
+echo "nawk'ing in ${aliasFile}"
+
+nawk '
+BEGIN {
+    # Field separator has several possibilities
+    FS = "[,:\ \t]"
+}
+
+{
+    # Handle continuation lines
+    if (continuationLine == 1) {
+        print $0
+        last = $NF
+        if (last == "")
+            continuationLine = 1
+        else
+            continuationLine = 0
+    }
+}
+
+# if the first field matches the alias
+#
+$1 ~ aliasToFind {
+    print $0
+    # If the last field ends with a comma then
+    # the alias continues on the next line.
+    # In that case, the last field will be empty.
+    last = $NF
+    if (last == "") {
+        continuationLine = 1
+    }
+}
+
+END {
+}
+
+' aliasToFind=$1 ${aliasFile}

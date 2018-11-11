@@ -1,0 +1,16 @@
+# Adds the following functions to my environment:
+#
+#	setimpactenv()
+#	unsetimpactenv()
+#
+runtimeHooks=/proj/impact/howie/cdev/linux/scripts/sys/impactenvhooks.sh
+
+if [ -f ${runtimeHooks} ]; then
+    . ${runtimeHooks}
+else
+    echo "Sourcing file: can not find: \"${runtimeHooks}\" "
+fi
+
+unset runtimeHooks
+
+echo "Reminder, issue: setimpactenv /proj/impact/${LOGNAME}/cdev/usrenv/install"

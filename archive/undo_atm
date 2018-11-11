@@ -1,0 +1,37 @@
+# --------------------------------------------------
+#
+# Script to clean up do_atm environment
+#
+# --------------------------------------------------
+
+# Clear stuff out of $PATH and $MANPATH. Run it
+# through sed. We use the "?" for the sed substitution
+# delimiter because pathnames are loaded with slashes.
+# So ?? means substitute nothing.
+
+if [ -z $TREEATM ]; then
+	return
+fi
+
+PATH=$( echo $PATH    | sed						\
+	-e "s?$TREEATM/bin:*??"						\
+	-e "s?/usr/users/sys500/gen/sw/vxworks/solaris.sparc.bin:*??" )
+
+# Get rid of possible trailing colon.
+PATH=${PATH%:}
+
+MANPATH=$( echo $MANPATH | sed						\
+	-e "s?/usr/users/sys500/gen/sw/man:*??"				\
+	-e "s?/usr/users/sys500/gen/sw/vxworks/man:*??"			\
+	-e "s?/usr/users/sys500/gen/sw/vxworks/solaris.sparc/man:*??" )
+
+# Get rid of possible trailing colon.
+MANPATH=${MANPATH%:}
+
+unalias vwman
+
+unset TREEATM
+unset forebase
+unset atmbase
+unset baseatm
+unset basefore

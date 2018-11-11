@@ -1,0 +1,152 @@
+#!/bin/expect -f
+#
+# FILE
+#     ftpcic - FTPs my CIC image to CIC 1 and CIC 2
+#
+# SYNOPSIS
+#     ftpcic [...]
+#
+# OPTIONS
+#     [-image <image name>] = Name of boot image to FTP.
+#         Default is "cic_ffff.Z".
+#
+#     [-dir  <directory name>] = Name of destination directory 
+#         to transfer imaage to. Get placed in <dir> in the 
+#         following string:
+#
+#         /tffs1/<dir>/bse/install/boot"
+#
+#         Default is to use "cdev.0.0".
+#
+#     [-1] = transfer to CIC in slot 1 only
+#
+#     [-2] = transfer to CIC in slot 2 only
+#
+#
+# DESCRIPTION
+#     FTPs a boot image to the same destination directory
+#     on the CIC in slot 1 and 2.
+#
+# EXAMPLE
+#     ftpcic -- -1 -image cic_ab7f.Z
+#
+# ENVIRONMENT
+#     Cygwin
+#
+# BUGS
+#     No known bugs.
+#
+# -------------------------------------------------------
+
+proc usage {} {
+    puts "ftpcic -- [-dir <directory>] [-image <image name>] [1|2]
+}
+
+# -------------------------------------------------------
+
+proc main { args } {
+
+    set doSlot1 1
+    set doSlot2 1
+
+    set dirArg "cdev.0.0"
+    set dirFlag 0
+
+    set imageNameArg "cic_ffff.Z"
+    set imageNameFlag 0
+
+    set targetList {}
+    
+    foreach arg $args {
+        if { $dirFlag } {
+            set dirArg $arg
+            set dirFlag 0
+        }
+        if { $imageNameFlag } {
+            set imageNameArg $arg
+            set imageNameFlag 0
+        }
+        if { $arg == "-?" } {
+            usage{}
+            exit 1
+        } elseif { $arg == "-dir" } {
+            set dirFlag 1
+        } elseif { $arg == "-image" } {
+            set imageNameFlag 1
+        } elseif { $arg == "-1" } {
+            set doSlot1 1
+            set doSlot2 0
+        } elseif { $arg == "-2" } {
+            set doSlot1 0
+            set doSlot2 1
+        } else {
+            lappend targetList $arg
+        }
+    }
+
+    exp_internal 0
+
+    cd "e:/proj/bwa/cdev/nt4.0-ppc604/usrenv/tffs1/cdev.0.0/bse/install/boot"
+    puts "cd //e/proj/bwa/cdev/nt4.0-ppc604/usrenv/tffs1/cdev.0.0/bse/install/boot\n"
+    set destDir "/tffs1/$dirArg/bse/install/boot"
+
+    if { $doSlot1 } {
+        set host "172.20.12.81"
+        runFtp $host $destDir $imageNameArg
+        puts "\n"
+    }
+    if { $doSlot2 } {
+        set host "172.20.12.82"
+        runFtp $host $destDir $imageNameArg
+        puts "\n"
+    }
+
+    puts "\n"
+}
+
+# -------------------------------------------------------
+
+proc runFtp { host destDir imageName } {
+
+    spawn ftp $host
+
+    expect {
+        -timeout 90
+        "ftp: " {
+            puts "\n"
+            return
+        }
+        timeout {
+            puts "\n"
+            return
+        }
+        "Password:" {
+            send "vxworks\r"
+        }
+        eof {}
+    }
+
+    expect "ftp> "
+    send "cd $destDir\r"
+
+    expect "ftp> "
+    send "pwd\r"
+
+    # expect "ftp> "
+    # send "ls\r"
+
+    expect "ftp> "
+    send "binary\r"
+    
+    set timeout 120
+
+    expect "ftp> "
+    send "put $imageName\r"
+
+    expect "ftp> "
+    send "quit\r"
+}
+
+# -------------------------------------------------------
+
+eval main $argv

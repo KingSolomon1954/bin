@@ -1,0 +1,46 @@
+#!/usr/local/bin/expect -f
+#
+# Tips into CCF 550 VxWorks platform
+# Hardcoded to go after serial port 2 on host pacifica.
+# Hardcoded to expect my user prompt. You'll have to
+# change it to match your own prompt. The line that
+# needs changing is the line after "spawn rlogin
+# pacifica".
+#
+# To end your cu session enter ~.<CR>
+# If you're remoted logged in through two hosts enter
+# ~~.<CR> otherwise ~. will bring you all
+# the way back to the orignal rlogin.
+#
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+set delete         0x7f
+set backspace      0x08
+set ctrl_u         0x15
+
+if { "[exec hostname]" != "pacifica" } {
+    set timeout 60
+    spawn rlogin pacifica
+    expect ">\r\r\n"
+    send "cu -m -l/dev/tty1\r"
+} else {
+    spawn cu -m -l/dev/tty1
+}
+set timeout 10
+
+expect {
+    "Connected\07\r\n" {
+     }
+     timeout {
+        send_user "Connection timed-out"
+        exit
+     }
+}
+
+send "\rtyBackspaceSet($backspace)\r"
+interact
+
+# end file

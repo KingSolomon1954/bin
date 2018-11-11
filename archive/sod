@@ -1,0 +1,34 @@
+# !/bin/bash
+#
+# FILE
+#	sod - start of day
+#
+# SYNOPSIS
+#	sod - no arguments
+#
+# DESCRIPTION
+#	Clocks in at the start of the day. Writes starting
+#	time into the time log.
+#	Must supply the following format to date.
+#	The eod script greps and depends on this format.
+#	date "+%a  %D %H:%M"
+#
+# OPTIONS
+#	None
+#
+# EXAMPLE
+#	sod
+# 
+# ENVIRONMENT
+#	No environment variable expected.
+#
+# BUGS
+#
+# -----------------------------------------------------------
+
+log=~/admin/timecard/timelog
+
+date "+%a  %D %H:%M" >> $log
+
+# end file
+

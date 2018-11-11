@@ -1,0 +1,65 @@
+#!/bin/bash
+#
+# FILE
+#	prdual - print dual sided
+#
+# SYNOPSIS
+#	prdual [-n | -h] <file>		or
+#	cat <filename> | prdual
+#
+# DESCRIPTION
+#	invokes pstext with a canned set of args to 
+#	print side-by-side landscape output.
+#
+# OPTIONS
+#	issue a "man pstext"
+#	-n - no header on pages
+#	-h - header on pages, this is the default
+#	-f <fontname> (not implemented)
+#	Helvetica, Helvetica-Bold, Courier-Bold,
+#	Times-Roman  Times-Bold,  Times-Italic
+#
+# EXAMPLE
+#	prdual notes.txt
+# 
+# ENVIRONMENT
+#	No environment variables expected.
+#	For csh
+#	alias prdual "pstext -s 7 -ld -yb 32 -xr 24 -xl 24 \!* | lpr -Pcx1b"
+#
+# SEE ALSO
+#	~/bin/landscape
+#
+# -----------------------------------------------------------
+
+
+# Go through pr to give it a date & file header
+# pr -l76 -h $1 $1 | pstext -ld -n 76 -yt 24 -yb 8 -xl 36 -xr 24 | lpr -Pcx1b
+# pstext -ld -n 76 -yt 24 -yb 8 -xl 36 -xr 24 $* | lpr -Pcx1b
+# Used to use this command for the dataview printer.
+# pr -l76 $header | pstext -ld -n 76 -yt 24 -yb 8 -xl 36 -xr 24 | lpr -P${PRINTER_DEV}
+
+# PRINTER_DEV=cx1b
+PRINTER_DEV=cx1
+
+header="-h"		# default is to have a header
+while getopts ":n" opt; do
+	case $opt in
+	n ) header="-t" ;;	# -t disables header in pr
+	\? ) echo "usage: prdual [-n] <filename> "
+		exit 1
+	esac
+done
+shift $[OPTIND - 1]
+
+if [ $# = "1" ] ; then		# file specified on command line
+	if [ $header = "-h" ] ; then
+		header="$header $1"	# -h arg needs a file name
+	fi
+	pr -n\ 4 -l76 $header $1 | pstext -T hpiii -ld -n 76 | lpr -P${PRINTER_DEV}
+else			# input coming from a pipe
+	if [ $header = "-h" ] ; then
+		header=""	# no file name on redirect, use null
+	fi
+	pr -n\ 4 -l76 $header | pstext -T hpiii -ld -n 76 | lpr -P${PRINTER_DEV}
+fi

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+cmd="od -x"
+
+for f in *.dat; do
+    i=${f%.*}         # strip suffix
+    echo "$cmd $f > $i.hex"
+    $cmd $f > $i.hex
+done
+

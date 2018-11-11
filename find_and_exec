@@ -1,0 +1,5 @@
+# Find files and execute command against them
+# You'll need to modify the script and specify
+# the files you're looking for.
+
+find . -type f -perm /u+x -exec $* {} +

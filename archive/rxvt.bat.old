@@ -1,0 +1,6 @@
+@echo off
+SET CYGWIN="tty ntsec"
+
+REM Need to get cygwin tools in front of NT tools (i.e., telnet)
+SET PATH=d:\cygwin\bin;d:\cygwin\contrib\bin;%PATH%
+d:\howie\bin\rxvt.exe -bg black -fg "springgreen3" -fn "Andale Mono-14" -sl 4096 -e bash --login

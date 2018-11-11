@@ -1,0 +1,21 @@
+# Source this file to bring function into environment
+#
+# -------------------------------------------------------
+#
+# Output text to standard out.
+#
+stdOut()
+{
+    echo "$*"
+}
+
+# -------------------------------------------------------
+#
+# Output text to standard error.
+#
+stdErr()
+{
+    echo "$*" 1>&2
+}
+
+# -------------------------------------------------------

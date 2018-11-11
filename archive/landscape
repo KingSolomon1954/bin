@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+# Prints landscape to postscript printer.
+# Good for looong lines.
+# Font in point size of 8
+
+# pstext -l -s 8 $* | lpr -Pcx1b
+pstext -l -s 8 $* | lpr -Pcx1

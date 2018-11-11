@@ -1,0 +1,68 @@
+# Unit test for cmdline.exp
+source cmdline.exp
+
+set gotUsage 0
+
+proc main {} {
+    global argv
+    global gotUsage
+
+    set argv "1 2 3 4 5 6 7 8 9 10"
+    set count [cmdline count]
+    if { $count != 10 } {
+        puts "Error: expected count: 10, got count: $count"
+        exit 1
+    }
+
+#   cmdline dump
+
+    set argv "-g 2 3 4 5 6 7 8 9 10"
+
+    if { ! [cmdline exists "-g"] } {
+        puts "Error: should have found arg: -g"
+        exit 1
+    }
+
+    set argv "1 2 3 4 5 6 7 8 9 -g"
+
+    if { ! [cmdline exists "-g"] } {
+        puts "Error: should have found arg: -g"
+        exit 1
+    }
+
+    set argv "1 2 3 4 5 6 7 8 -go -g"
+
+    if { ! [cmdline exists "-g"] } {
+        puts "Error: should have found arg: -g"
+        exit 1
+    }
+
+    set argv "1 2 3 4 5 6 7 8 -g -go"
+
+    if { [cmdline exists "-got"] } {
+        puts "Error: should not have found arg: -got"
+        exit 1
+    }
+
+    set argv "1 2 3 4 5 6 7 8 -g brian 10"
+
+    if { [cmdline getByName "-g"] != "brian" } {
+        puts "Error: should have found value: brian"
+        exit 1
+    }
+
+    set argv "1 2 3 4 5 6 7 8 9 -g"
+    set gotUsage 0
+    cmdline getByName "-g"
+    if { $gotUsage == 0 } {
+        puts "Error: failed to get usage called"
+        exit 1
+    }
+}
+
+proc usage {} {
+    global gotUsage
+    set gotUsage 1
+}
+
+main

@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+# Get rid of extra carriage returns by
+# using the translate utility.
+
+cat $1 | tr -d '\r' > $1.new
+

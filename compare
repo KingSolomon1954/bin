@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# If we visit an RCS directory don't do anything.
+dir=$(pwd)
+if [ ${dir##*/} = "RCS" ]; then
+	echo -e "\tIn an RCS dir"
+	exit
+fi
+
+if [ ! -d RCS ] ; then
+	echo -e "\tNo RCS directory here"
+else
+	for f in $(ls -A) ; do
+		if [ -d $f ]; then
+			continue
+		fi
+		if [ ! -f RCS/$f,v ] ; then
+			echo -e "\t$f not checked in RCS"
+		fi
+	done
+fi

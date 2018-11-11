@@ -1,0 +1,41 @@
+#!/bin/expect -f
+
+# Script to remotely cycle power on my base station.
+# Telnets to the power hub and issues
+# an "off" command followed by an "on" command
+# on my base stations's port.
+
+# exp_internal 0
+# set timeout 10
+
+# spawn telnet 172.20.14.62 2001
+#
+# expect "is '^]'."
+# Get power hub's attention, it seems to require this.
+# send "\r\r\r"
+#
+# sleep 1
+#
+# For administrative access
+# Username: admn
+# Password: admn
+
+spawn telnet 172.20.11.15 2001
+
+expect "Username: "
+send "gen1\r"
+
+expect "Password: "
+send "gen1\r"
+
+expect "Sentry:"
+send "off p1\r"
+
+expect "Sentry:"
+# Give it a chance to settle before turning it back on.
+sleep 4
+send "on p1\r"
+
+expect "Sentry:"
+send "quit\r"
+puts "\n"

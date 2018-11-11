@@ -1,0 +1,22 @@
+#
+# script to repeat a command n times
+#
+# $1 is how many times
+# $2 is the command to execute
+# 
+# Examples:
+#
+# repeat 5 date
+# repeat 10 "~hare/x11perf/x11perf -all -display ppc4:0 -repeat 1" &
+#
+# -----------------------------------------------------------------
+
+let count=0
+while ((count < $1)); do
+	eval $2
+	let count=count+1
+done
+
+# -----------------------------------------------------------------
+
+# end file

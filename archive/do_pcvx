@@ -1,0 +1,71 @@
+# --------------------------------------------------
+#
+# Script to setup development environment for
+# Proswitch using PC VxWorks (pcvx)
+#
+# Some values are duplicated in the corresponding
+# clean up script, undo_pcvx, so these must agree.
+#
+# --------------------------------------------------
+
+# Clean up _any_ previous environment
+. undo_all
+
+# --------------------------------------------------
+
+# MACHINE is used for sharing makefiles
+
+declare -x MACHINE=pcvx
+
+# --------------------------------------------------
+
+# Set up environment for VxWorks on a PC (I80386)
+
+# Variables for building VxWorks
+
+declare -x VX_HOST_TYPE=sun4
+declare -x VX_HSP_BASE=/vol/netgroup/pcvx
+declare -x VX_BSP_BASE=/vol/netgroup/pcvx
+declare -x VX_VW_BASE=/vol/netgroup/pcvx
+declare -x VX_CPU_FAMILY=386
+
+# Variables for GNU environment
+
+declare -x GCC_EXEC_PREFIX=/vol/netgroup/pcvx/sun4.386/lib/gcc-lib/
+declare -x TMPDIR=/vol/netgroup/tmp
+
+# --------------------------------------------------
+
+# setup a CDPATH for the project, Leave $TREE in environment
+# Use uppcase TREE so as not to conflict with function "tree"
+
+declare TREEPCVX=$HOME/proswitch
+declare L1=$TREEPCVX/Pci
+declare L2=$TREEPCVX/Pcvx
+
+CDPATH=.:$TREEPCVX:$L1:$L2
+
+unset L1 L2
+
+# --------------------------------------------------
+
+# Add the project's script and bin directory to $PATH
+
+declare addpath=$TREEPCVX/int/scripts
+addpath=$addpath:$VX_VW_BASE/sun4.386/bin
+addpath=$addpath:$VX_VW_BASE/bin/sun4
+PATH=$PATH:$addpath
+unset addpath
+
+# --------------------------------------------------
+
+# Add the VxWorks man path and project man directory
+
+alias vwman="man -M $VX_VW_BASE/man"
+
+declare addmanpath=$VX_VW_BASE/man:$TREEPCVX/int/man
+addmanpath=$addmanpath:/vol/netgroup/gnats/gnats-3.2/man
+MANPATH=$MANPATH:$addmanpath
+unset addmanpath
+
+# --------------------------------------------------

@@ -1,0 +1,31 @@
+#!/usr/local/bin/expect -f
+#
+# ftp's into Sikorsky host orion and sends files <arg 1..n> to 
+#	~sys500/sw/tmp
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+set sikorsky_1 128.1.1.67
+set sikorsky_2 128.1.1.68
+set orion      128.1.1.62
+
+spawn ftp $orion
+expect "ftp> "
+# send "cd p550/gnu040/bin/modules\r"
+send "cd sw/tmp\r"
+expect "ftp> "
+send "binary\r"
+expect "ftp> "
+
+set count 0
+while { $count < $argc } {
+#    puts "sending arg\[$count\] = [lindex $argv $count]"
+    send "send [lindex $argv $count]\r"
+    expect "ftp> "
+    incr count
+}
+
+send "quit\r"
+puts "\r\n"

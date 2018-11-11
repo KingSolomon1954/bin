@@ -1,0 +1,396 @@
+#
+# cicswitchover
+# Test switchovers between 2 CIC cards by resetting them periodically
+#
+
+set cic1SpawnId -1
+set cic2SpawnId -1
+
+# -----------------------------------------------------------------
+# 
+proc usage {} {
+    puts "Usage: cicswitchover -addr <digiport IP address>"
+    puts "                     -p1 <slot1 port>"
+    puts "                     -p2 <slot2 port>"
+    puts "                    \[-sleep <seconds>]"
+    puts "                    \[-count <count>]"
+    puts "                    \[-username <username>]"
+    puts "                    \[-password <password>]"
+    puts "Defaults are: sleep=8, count=32000"
+    exit 1
+}
+
+# -----------------------------------------------------------------
+# 
+proc main args {
+    global cic1SpawnId
+    global cic2SpawnId
+
+    set lenArgs [llength $args]
+
+    if { $lenArgs == 0 || [lindex $args 1] == "-h" || 
+        [lindex $args 1] == "--help"} {
+        usage
+    }
+
+    # defaults
+    set sleep 8
+    set count 32000
+    set username ""
+    set password ""
+    
+    for {set argIndex 0} {$argIndex < $lenArgs} {incr argIndex} {
+        set arg [lindex $args $argIndex]
+
+        if { [string index $arg 0] != "-" } {
+            break
+        }
+        set arg [string range $arg 1 end]
+    
+        if { $lenArgs == $argIndex + 1 } {
+            usage
+        }
+    
+        set val [lindex $args [incr argIndex]]
+
+        switch -- $arg {
+            "addr" -
+            "p1" -
+            "p2" -
+            "password" -
+            "username" -
+            "count" -
+            "sleep" {
+                set $arg $val
+            }
+            "h" -
+            "-help" { 
+                usage
+            }
+            default {
+                puts "Unknown switch $arg"
+                usage
+            }
+        }
+    }
+
+    if { ! [info exists addr] } {
+        puts "The -addr argument is missing"
+        usage
+    }
+
+    if { ! [info exists p1] } {
+        puts "The -p1 argument is needed"
+        usage
+    }
+
+    if { ! [info exists p2] } {
+        puts "The -p2 argument is needed"
+        usage
+    }
+
+#    set logfilename [timestamp -format "%m-%d-%y__%H-%M-%S.log"]
+#    puts "logfilename is $logfilename"
+    set logfilename cicswitchover.log
+    log_file -noappend -a $logfilename
+  
+    set cic1SpawnId [connect $addr $p1 $username $password]
+    set cic2SpawnId [connect $addr $p2 $username $password]
+  
+    switchover $count $sleep
+}
+
+# -----------------------------------------------------------------
+# 
+# Called once to establish a telnet connection
+# to the serial port of each CIC. Sets the global
+# array contents for Cic1 and Cic2.
+#
+proc connect {digiportIp port username password} {
+
+    # For argument verification
+    # puts "telnet $digiportIp $port $username $password"
+
+    set userStr    "\n*** Connecting to CIC serial port via "
+    append userStr "$digiportIp $port\n"
+    send_user $userStr
+
+    set timeout 60
+    # spawn s:/buildsw/cygwin/bin/telnet $digiportIp $port
+    spawn telnet $digiportIp $port
+    
+    send_user "*** Waiting for login prompt\n"
+    send "\n\n"
+    expect {
+	-timeout 10
+	--
+	"->" {
+	    set securityEnabled 0
+	}
+	"ogin:" {
+	    set securityEnabled 1
+	    send "$username\n"
+	}
+	timeout {
+	    send_user "\n*** Timeout after no password prompt received.\n"
+	    log_file
+	    exit 1
+	}
+	eof {
+	    send_user "\n*** Timeout after no password prompt received.\n"
+	    log_file
+	    exit 1
+	}
+    }
+    
+    if { $securityEnabled } {
+	set loginComplete 0
+        
+	# look for Password prompt
+	send_user "*** Waiting for password prompt\n"
+	expect {
+	    -timeout 10
+	    --
+	    "->" {
+		set loginComplete 1
+	    }
+	    "assword:" {
+		send "$password\n"
+	    }
+	    timeout {
+		send_user "\n*** Timeout after no password prompt received.\n"
+		log_file
+		exit 1
+	    }
+	    eof {
+		send_user "\n*** Timeout after no password prompt received.\n"
+		log_file
+		exit 1
+	    }
+	}
+	
+	if { ! $loginComplete } {
+	    expect {
+		-timeout 30
+		--
+		"->" { }
+		timeout {
+		    puts "Timeout waiting for $digportIp"
+		    log_file
+		    exit 1
+		}
+		eof {
+		    puts "EOF waiting for $digportIp"
+		    log_file
+		    exit 1
+		}
+	    }
+	}
+    }
+    
+    return $spawn_id
+}
+
+# -----------------------------------------------------------------
+# 
+proc switchover {maxCount sleep} {
+    global cic1SpawnId
+    global cic2SpawnId
+
+    # Determine which CIC is currently the active CIC.
+    send -i $cic1SpawnId "bsmShowLocalState 1\n"
+    expect {
+        -i $cic1SpawnId 
+        -timeout 30
+        "providing_service" {
+             set activeSpawnId $cic1SpawnId
+             set activeSlot 1
+             set standbySpawnId $cic2SpawnId
+             set standbySlot 2
+        } 
+        "hot_standby" {
+            set activeSpawnId $cic2SpawnId
+            set activeSlot 2
+            set standbySpawnId $cic1SpawnId
+            set standbySlot 1
+    	}
+        timeout {
+            set userStr "\n*** Timeout: can't figure who is Active/Standby"
+            send_user $userStr
+            log_file
+            exit 1
+        }
+    }
+
+    send_user "\n*** CIC $activeSlot detected as providing service"
+    send_user "\n*** Switchover every $sleep seconds\n"
+
+    for {set count 1} {$count <= $maxCount} {incr count} {
+
+        send_user "\n*** Switchover from CIC $activeSlot to CIC $standbySlot\n"
+
+        # Force failure in the active CIC card.
+        sendResetCardCmd $activeSpawnId $activeSlot $activeSlot "Faulting"
+
+        waitForStandbyToGoActive $standbySpawnId $standbySlot $count
+
+        # Flip active/standby
+        if { $activeSpawnId == $cic1SpawnId } {
+            set activeSpawnId $cic2SpawnId
+            set activeSlot 2
+            set standbySpawnId $cic1SpawnId
+            set standbySlot 1
+        } else {
+            set activeSpawnId $cic1SpawnId
+            set activeSlot 1
+            set standbySpawnId $cic2SpawnId
+            set standbySlot 2
+        }
+
+        # Release faulted card to boot up as a standby
+        sendResetCardCmd $activeSpawnId $activeSlot $standbySlot "Booting"
+
+        waitForStandbyToReboot $standbySpawnId $standbySlot $count
+
+        send_user "\n\n\n*** End of iteration $count\n\n\n"
+        sleep $sleep
+    }
+}
+
+# -----------------------------------------------------------------
+# 
+proc sendResetCardCmd { toSlotSpawnId toSlot whichCardToReset verb } {
+
+    waitForPrompt $toSlotSpawnId
+
+    set cmd "fbResetCardCmd $whichCardToReset,2"
+    send_user "\n*** $verb CIC $whichCardToReset by sending $cmd to CIC $toSlot\n"
+    send -i $toSlotSpawnId "$cmd\n"
+
+    # Shouldn't have to do the following, but there seems to be a
+    # bug in which the spawn ids get lost, unless I issue this
+    # null expect statement.
+    #
+    expect {
+        -i $toSlotSpawnId 
+        -timeout 1
+    }
+}
+
+# -----------------------------------------------------------------
+# 
+proc waitForStandbyToGoActive {spId slot count} {
+    
+    set numAttempts 0
+
+    send_user "\n*** Waiting for CIC $slot to go active\n"
+    send -i $spId "bsmShowLocalState $slot\n"
+
+    expect {
+        -i $spId
+        -timeout 10
+        "standbyStatus  providing_service" {
+            send_user "\n*** CIC $slot is now providing service\n"
+        } 
+        timeout {
+            if { $numAttempts > 4 } {
+                set userStr "\n*** Standby CIC in slot $slot failed "
+                append userStr "to go active (iteration $count).\n"
+                send_user $userStr
+                log_file
+                exit 1
+            } else {
+                send -i $spId "bsmShowLocalState $slot\n"
+                incr numAttempts
+                exp_continue
+            }
+        }
+        eof {
+            set userStr "\n*** EOF waiting for standby to go active"
+            append userStr " (iteration $count).\n"
+            send_user $userStr
+            log_file
+            exit 1
+        }
+    }
+}
+
+# -----------------------------------------------------------------
+# 
+proc waitForStandbyToReboot {spId slot count} {
+
+    set numAttempts 0
+    set cmd "bsmShowLocalState $slot"                
+    set timeout 200
+    send_user "\n*** Waiting for CIC $slot to initialize\n"
+
+    expect {
+        -i $spId
+        "CIC STARTED SUCCESSFULLY" {
+            send_user "\n*** CIC $slot BOOTED SUCCESSFULLY\n"
+            sleep 10
+            set timeout 10
+            send -i $spId "$cmd\n"
+            exp_continue
+        }
+        "standbyStatus  hot_standby" {
+            send_user "\n*** And came up as a Standby CIC\n"
+        }
+        "seconds to press a key and halt the boot process" {
+            sleep 1
+            send -i $spId "\033\n"
+            exp_continue
+        }
+        "any key to stop auto-boot" {
+            send -i $spId "@\n"
+            exp_continue
+        }
+        timeout {
+            if { $numAttempts == 6 } {
+                set userStr "\n*** Timeout waiting for Standby CIC slot "
+                append userStr "$slot to boot (iteration $count).\n" 
+                send_user $userStr
+                log_file
+                exit 1
+            } else {
+                incr numAttempts
+                set timeout 10
+                send -i $spId "$cmd\n"
+                exp_continue
+            }
+        }
+        eof {
+            set userStr "\n*** EOF waiting for Standby CIC slot "
+            append userStr "$slot to boot (iteration $count).\n"
+            send_user $userStr
+            log_file
+            exit 1
+        }
+    }
+}
+
+# -----------------------------------------------------------------
+# 
+proc waitForPrompt {spId} {
+    send -i $spId "\n"
+    expect {
+        -i $spId
+        -timeout 1
+        --
+        "->" { }
+        timeout {
+            send -i $spId "\n"
+            exp_continue
+        }
+    }
+}
+
+# -----------------------------------------------------------------
+# 
+proc log_by_tracing { } {
+    
+}
+
+# -----------------------------------------------------------------
+# 
+eval main $argv

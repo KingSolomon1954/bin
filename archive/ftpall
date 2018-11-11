@@ -1,0 +1,44 @@
+#!/bin/bash
+#
+# FILE
+#     ftpall - FTPs my CIC image to CIC 1 and CIC 2
+#
+# SYNOPSIS
+#     ftpcic [...]
+#
+# OPTIONS
+#     [-image <image name>] = Name of boot image to FTP.
+#         Default is "cic_ffff.Z".
+#
+#     [-dir  <directory name>] = Name of destination directory 
+#         to transfer imaage to. Get placed in <dir> in the 
+#         following string:
+#
+#         /tffs1/<dir>/bse/install/boot"
+#
+#         Default is to use "cdev.0.0".
+#
+#     [-1] = transfer to CIC in slot 1 only
+#
+#     [-2] = transfer to CIC in slot 2 only
+#
+#
+# DESCRIPTION
+#     FTPs a boot image to the same destination directory
+#     on the CIC in slot 1 and 2.
+#
+# EXAMPLE
+#     ftpcic -- -1 -image cic_ab7f.Z
+#
+# ENVIRONMENT
+#     Cygwin
+#
+# BUGS
+#     No known bugs.
+#
+# -------------------------------------------------------
+
+ftpcic -- -image cic_ffff.Z
+ftpcic -- -image atmnic_ffff.Z
+ftpcic -- -image hwmic_ffff.Z
+

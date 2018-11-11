@@ -1,0 +1,12 @@
+# Script file to set up aix compile environment
+#
+
+typeset -x MACHINE=rs6
+
+# source stuff needed for all compiles
+. do_all
+
+# Prepare for CDPATH stuff
+TREE=/projects/ibm/develop/aix
+
+do_cdpath $TREE howie

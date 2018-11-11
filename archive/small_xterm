@@ -1,0 +1,2 @@
+exec xterm -fn -misc-fixed-bold-r-normal--13-100-100-100-c-70-iso8859-1 &
+

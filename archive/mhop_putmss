@@ -1,0 +1,752 @@
+#!/usr/bin/expect
+#
+# FILE
+#     putmss
+#
+# SYNOPSIS
+#     putmss 1|2|3|4|... [-list] [-ssh] [-scp <file>]
+# 
+# OPTIONS
+#     1,2,...  Perform an action to these "numbered" machine(s).
+#              The numbers you supply are meant to agree with
+#              the output of -list.
+#              Several machines can be specified by repeating
+#              arguments, e.g., 1 3. At least one machine is
+#              required.
+#
+#     [-list]  List the machines known to this script 
+#              and then exit. No action is taken.
+#
+#     [-ssh]   ssh into each machine in turn and puts you
+#              into the shell in /tmp where you can manually
+#              enter commands. This is the default.
+#
+#     [-scp file] Copies the given file to the /tmp
+#              directory on each machine.
+#
+# DESCRIPTION
+#     Allows you to perform automated ssh login or scp 
+#     file copy to several machines sequentially using 
+#     hard-coded knowledge of login/password. This script 
+#     handles multiple (no limit) ssh hops where indicated 
+#     to get to the target machines.
+#     
+#     Intermediate hops are given by the proper construction
+#     of the knownHosts table embedded in this script.
+#
+# ENVIRONMENT
+#     Works with ssh password or no password.
+#
+# EXAMPLES
+#     # Show me the hard-coded list of known hosts
+#     > putmss -list
+#
+#     # Copy rtnms.tar to /tmp on both machines 1 and 3.
+#     > putmss 1 3 -scp ../proj/rtnms.tar
+#
+#     # Login to machine 2 leaving you at the shell prompt
+#     > putmss 2
+#
+# BUGS
+#     None.
+#
+# ------------------------------------------------------
+#
+proc doSsh {destHostIdx} {
+    set destHostEntry        [lindex $::knownHosts $destHostIdx]
+    set destHostName         [lindex $destHostEntry 0]
+#   set destHostIp           [lindex $destHostEntry 1]
+#   set destUserName         [lindex $destHostEntry 2]
+#   set destPasswd           [lindex $destHostEntry 3]
+#   set destPrevHopHostName  [lindex $destHostEntry 4]
+
+    resetSpawnId
+    puts "ssh'ing to: $destHostName"
+
+    # hopList is a list of host entries sorted in
+    # proper order such that we can visit each host
+    # in turn by walking the list forward.
+    #
+    set hopList [buildHopList $destHostIdx]
+
+    set hopCnt 0
+    foreach hostEntry $hopList {
+#       set hostName         [lindex $hostEntry 0]
+        set hostIp           [lindex $hostEntry 1]
+        set userName         [lindex $hostEntry 2]
+        set passwd           [lindex $hostEntry 3]
+#       set prevHopHostName  [lindex $hostEntry 4]
+
+        if { [doSshLogin $hopCnt $hostIp $userName $passwd] == $::error} {
+            errorExit ""
+        }
+        incr hopCnt
+    }
+    doSshInteract
+}
+
+# ------------------------------------------------------
+
+proc doSshLogin {hopCnt ipAddr user passwd} {
+    if {$hopCnt == 0} {
+        spawn ssh $user@$ipAddr
+        set ::spawnId $spawn_id
+    } else {
+        send -i $::spawnId "ssh $user@$ipAddr\r"
+    }
+
+    expect {
+        -i $::spawnId
+        -timeout 90
+        --
+        "No route to host" {
+            send_error "Cannot connect to $user@$ipAddr"
+            return $::error
+        }
+
+        "Connection timed out" {
+            send_error "Timeout connecting to $user@$ipAddr"
+            return $::error
+        }
+
+        timeout {
+            send_error "Timeout connecting to $user@$ipAddr"
+            return $::error
+        }
+
+        eof {
+            send_error "Connect to $user@$ipAddr failed"
+            return $::error
+        }
+
+        "assword: " {
+            send -i $::spawnId "$passwd\r"
+            exp_continue
+        }
+
+        "(yes/no)? " {
+            send -i $::spawnId "yes\r"
+            exp_continue
+        }
+
+        "# " {
+            # matches shell prompt
+        }
+    }
+    return $::success
+}
+
+# ------------------------------------------------------
+
+proc doSshInteract {} {
+    send   -i $::spawnId "cd /tmp\r"
+    expect -i $::spawnId "# "
+
+    setupShellHowie
+
+    interact -i $::spawnId
+}
+
+# ------------------------------------------------------
+
+proc setupShellHowie {} {
+    send   -i $::spawnId "unalias ls\r"
+    expect -i $::spawnId "# "
+    send   -i $::spawnId "alias u='cd ..'\r"
+    expect -i $::spawnId "# "
+    send   -i $::spawnId "alias b='cd -'\r"
+    expect -i $::spawnId "# "
+    
+    send   -i $::spawnId "alias  l='ls       -F --color=auto'\r"
+    expect -i $::spawnId "# "
+    send   -i $::spawnId "alias  L='ls -lsa  -F --color=auto'\r"
+    expect -i $::spawnId "# "
+    send   -i $::spawnId "alias LL='ls -lsai -F --color=auto'\r"
+    expect -i $::spawnId "# "
+    
+    send   -i $::spawnId "bind '\"\\C-l\": kill-word'\r"
+    expect -i $::spawnId  "# "
+    send   -i $::spawnId "bind '\"\\C-j\": backward-char'\r"
+    expect -i $::spawnId "# "
+    send   -i $::spawnId "bind '\"\\C-g\": forward-word'\r"
+    expect -i $::spawnId "# "
+}
+
+# ------------------------------------------------------
+
+proc doScp {destHostIdx} {
+    set destHostEntry        [lindex $::knownHosts $destHostIdx]
+    set destHostName         [lindex $destHostEntry 0]
+#   set destHostIp           [lindex $destHostEntry 1]
+#   set destUserName         [lindex $destHostEntry 2]
+#   set destPasswd           [lindex $destHostEntry 3]
+#   set destPrevHopHostName  [lindex $destHostEntry 4]
+
+    resetSpawnId
+    puts "scp'ing $::scpFileName to: $destHostName"
+
+    # hopList is a list of host entries sorted in
+    # proper order such that we can visit each host
+    # in turn by walking the list forward.
+    #
+    set hopList [buildHopList $destHostIdx]
+
+    set hopCnt 0
+    foreach hostEntry $hopList {
+#       set hostName         [lindex $hostEntry 0]
+        set hostIp           [lindex $hostEntry 1]
+        set userName         [lindex $hostEntry 2]
+        set passwd           [lindex $hostEntry 3]
+#       set prevHopHostName  [lindex $hostEntry 4]
+
+        if { [doScpXfer $hopCnt $hostIp $userName $passwd $::scpFileName] == $::error} {
+            errorExit ""
+        }
+        # if {$hopCnt == lastHop} {
+        #     break
+        # }
+        if { [doSshLogin $hopCnt $hostIp $userName $passwd] == $::error} {
+            errorExit ""
+        }
+
+
+
+        incr hopCnt
+    }
+}
+
+# ------------------------------------------------------
+
+proc oldDoScp {hostEntry} {
+    set hostName     [lindex $hostEntry 0]
+#   set hostIp       [lindex $hostEntry 1]
+#   set userName     [lindex $hostEntry 2]
+#   set passwd       [lindex $hostEntry 3]
+    set hop1HostName [lindex $hostEntry 4]
+    
+    resetSpawnId
+    if {$hop1HostName == "NoHop"} {
+        doSimpleScp $hostEntry
+        return
+    }
+
+    if { [doScpFirstHop $hostEntry] == $::error} {
+        return
+    }
+
+    resetSpawnId
+    doScpSecondHop $hostEntry
+}    
+
+# ------------------------------------------------------
+
+proc doSimpleScp {hostEntry} {
+    set hostName     [lindex $hostEntry 0]
+    set hostIp       [lindex $hostEntry 1]
+    set userName     [lindex $hostEntry 2]
+    set passwd       [lindex $hostEntry 3]
+#   set hop1HostName [lindex $hostEntry 4]
+
+    doScpXfer $hostIp $userName $passwd $::scpFileName 
+}
+
+# ------------------------------------------------------
+
+proc doScpFirstHop {hostEntry} {
+#   set hostName     [lindex $hostEntry 0]
+#   set hostIp       [lindex $hostEntry 1]
+#   set userName     [lindex $hostEntry 2]
+#   set passwd       [lindex $hostEntry 3]
+    set hop1HostName [lindex $hostEntry 4]
+
+    puts "  Via host: $hop1HostName"
+    set hop1HostEntry [lookupHostEntry $hop1HostName]
+    if {$hop1HostEntry == "NoSuchHost"} {
+        send_error "No matching entry in table for: $hop1HostName\n"
+        return $::error
+    }
+
+    set hop1IpAddr [lindex $hop1HostEntry 1]
+    set hop1User   [lindex $hop1HostEntry 2]
+    set hop1Passwd [lindex $hop1HostEntry 3]
+
+    return [doScpXfer $hop1IpAddr $hop1User $hop1Passwd $::scpFileName]
+}
+
+# ------------------------------------------------------
+
+proc doScpSecondHop {hostEntry} {
+#   set hostName     [lindex $hostEntry 0]
+    set hostIp       [lindex $hostEntry 1]
+    set userName     [lindex $hostEntry 2]
+    set passwd       [lindex $hostEntry 3]
+#   set hop1HostName [lindex $hostEntry 4]
+    
+    if {[doSshFirstHop $hostEntry] == $::error} {
+        return $::error
+    }
+
+    # We're now sitting at the shell prompt
+
+    set fileBase [ file tail $::scpFileName ]
+
+    doScpXfer $hostIp $userName $passwd /tmp/$fileBase
+
+    # Unconditionally remove file from intermmediate host 
+    send   -i $::spawnId "rm -f /tmp/$fileBase\r"
+    expect -i $::spawnId "# "
+}
+
+# ------------------------------------------------------
+
+proc doScpXfer {hopCnt ipAddr user passwd fileName} {
+    if {$hopCnt == 0} {
+        spawn scp $fileName $user@$ipAddr:/tmp
+        set ::spawnId $spawn_id
+    } else {
+        send -i $::spawnId "scp $fileName $user@$ipAddr:/tmp\r"
+    }
+
+    expect {
+        -i $::spawnId
+        -timeout 900
+        --
+        "No route to host" {
+            send_error "Cannot connect to $user@$ipAddr"
+            return $::error
+        }
+
+        "Connection timed out" {
+            send_error "Timeout connecting to $user@$ipAddr"
+            return $::error
+        }
+
+        timeout {
+            send_error "Timeout connecting to $user@$ipAddr"
+            return $::error
+        }
+
+        eof {
+            send_error "Connect to $user@$ipAddr failed"
+            return $::error
+        }
+
+        "assword: " {
+            send -i $::spawnId $passwd\r
+            exp_continue
+        }
+
+        "(yes/no)? " {
+            send -i $::spawnId "yes\r"
+            exp_continue
+        }
+
+        "100%" {
+            # we are done
+        }
+    }
+    return $::success
+}
+
+# ------------------------------------------------------
+
+proc oldDoScpXfer {ipAddr user passwd fileName} {
+    if {$::spawnId == 0} {
+        spawn scp $fileName $user@$ipAddr:/tmp
+        set ::spawnId $spawn_id
+    } else {
+        send -i $::spawnId "scp $fileName $user@$ipAddr:/tmp\r"
+    }
+
+    expect {
+        -i $::spawnId
+        -timeout 900
+        --
+        "No route to host" {
+            send_error "Cannot connect to $user@$ipAddr"
+            return $::error
+        }
+
+        "Connection timed out" {
+            send_error "Timeout connecting to $user@$ipAddr"
+            return $::error
+        }
+
+        timeout {
+            send_error "Timeout connecting to $user@$ipAddr"
+            return $::error
+        }
+
+        eof {
+            send_error "Connect to $user@$ipAddr failed"
+            return $::error
+        }
+
+        "assword: " {
+            send -i $::spawnId $passwd\r
+            exp_continue
+        }
+
+        "(yes/no)? " {
+            send -i $::spawnId "yes\r"
+            exp_continue
+        }
+
+        "100%" {
+            # we are done
+        }
+    }
+    return $::success
+}
+
+# ------------------------------------------------------
+
+proc resetSpawnId {} {
+    if {$::spawnId != 0} {
+        close $::spawnId
+    }
+    set ::spawnId 0
+}
+
+# ------------------------------------------------------
+#
+# Builds a list of all the hosts that must be 
+# visited in proper order to get to the destination
+# host of interest. Thus the first entry in the list
+# is the first host to visit.
+# Returns a sorted list of host entries.
+#
+proc buildHopList {destHostIdx} {
+    set hostEntry [lindex $::knownHosts $destHostIdx]
+    set tmpList {}
+    
+    while {true} {
+        set tmpList [linsert $tmpList 0 $hostEntry]
+
+        set prevHopHostName [lindex $hostEntry 4]
+        if {$prevHopHostName == "NoHop"} {
+            break
+        }
+
+        set hostEntry [lookupHostEntry $prevHopHostName]
+
+        if {$hostEntry == "NoSuchHost"} {
+            send_error "No matching entry in table for: $prevHopHostName\n"
+            return $::error
+        }
+    }
+
+    return $tmpList
+}
+
+# ------------------------------------------------------
+
+# Return the hostentry associated with the given host
+
+proc lookupHostEntry {argHostName} {
+    foreach hostEntry $::knownHosts {
+        set hostName [lindex $hostEntry 0]
+        if {$hostName == $argHostName} {
+            return $hostEntry
+        }
+    }
+    return "NoSuchHost"
+}
+
+# ------------------------------------------------------
+
+proc doOneHost {destHostIdx} {
+    
+    if {$::wantSsh} {
+        doSsh $destHostIdx
+    }
+    
+    if {$::wantScp} {
+        doScp $destHostIdx
+    }
+    
+    puts ""
+}
+
+# ------------------------------------------------------
+
+proc loopOverCmdLineHosts {} {
+    foreach hostNum $::cmdLineHostList {
+        doOneHost [expr $hostNum - 1]
+    }
+}
+
+# ------------------------------------------------------
+
+proc processCmdLine {} {
+    set argvHelp   "-help"
+    set argvList   "-list"
+    set argvSsh    "-ssh"
+    set argvScp    "-scp"
+    
+    set stateNone        0    
+    set stateError       1
+    set stateScp         2
+    
+    set wantList         false
+    set cmdLineHostListLocal {}
+    
+    set state $stateNone
+    foreach arg $::argv {
+        if {$arg == $argvHelp} {
+            usage
+            exit 1
+        } elseif {$arg == $argvList} {
+            set wantList true
+            break
+        } elseif {$arg == $argvSsh} {
+            set ::wantSsh true
+            set state $stateNone
+        } elseif {$arg == $argvScp} {
+            set ::wantScp true
+            set state $stateScp
+        } elseif {$state == $stateScp} {
+            set ::scpFileName $arg
+            set state $stateNone
+        } elseif { [string index $arg 0] == "-"} {
+            set state $stateError
+        } elseif { [string is integer $arg] } {
+            if { [expr $arg > 0 && $arg <= [llength $::knownHosts]] } {
+                lappend cmdLineHostListLocal $arg
+            } else {
+                puts "Bad argument: $arg"
+                usage
+                exit 1
+            }
+        }
+    }    
+
+    if {$state != $stateNone} {
+        usage
+        exit 1
+    }
+    
+    if {$wantList} {
+        set i 1
+        foreach j $::knownHosts {
+            puts "$i $j"
+            incr i
+        }
+        exit 0
+    }
+    
+    if {!$::wantSsh && !$::wantScp} {
+        # Nothing specified, so ssh is the default.
+        set ::wantSsh true
+    }
+    
+    if {$::wantScp} {
+        if {$::wantSsh} {
+            puts "Can't have other options with $argvScp"
+            usage
+            exit 1
+        }
+        if {[file readable $::scpFileName] == 0} {
+            puts "file: $::scpFileName is unreadable"
+            exit 1
+        }
+    }
+    
+    if { [llength $cmdLineHostListLocal] == 0} {
+        puts "Must specify one or more hosts (see hosts with -list)"
+        usage
+        exit 1
+    }
+    set ::cmdLineHostList $cmdLineHostListLocal
+}
+
+# ------------------------------------------------------
+
+proc usage {} {
+    puts "Usage:"
+    puts [exec sed "/^# *DESCRIPTION/q" [info script] | \
+          sed -n "/^# *SYNOPSIS/,/^# *DESCRIPTION/p" | \
+          sed -e "/^# *SYNOPSIS/d" -e "/^# *DESCRIPTION/d" -e "/^# *OPTIONS/d" | \
+          sed -e "s/^#//"  -e "/^ *$/d" 2>@1]
+}
+
+# ------------------------------------------------------
+
+proc errorExit {s} {
+    send_error "\n$s\n"
+    exit 1
+}
+
+# ------------------------------------------------------
+#
+# Hard-coded table of hosts and IP addresses.
+# The "Hop" field should either have the keyword "NoHop" indicating
+# that the host is accessible straight away without going through
+# an intermediate host, or it should have the name of the host
+# in this table (first column) that should be used for the
+# intermediate hop/host.
+#
+#       Host Name        IP Address      Login  Password        Hop
+set ::knownHosts [ list \
+      {DEV-NOC-NMS         192.168.250.50    root 12345            NoHop         } \
+      {DEV-NOC-NCS         192.168.250.50    root 12345            NoHop         } \
+      {DEV-NOC-BNG         192.168.250.50    root 12345            NoHop         } \
+      {DEV-NOC-DBS         192.168.250.50    root 12345            NoHop         } \
+      {DEV-MSGS1-NMS       192.168.104.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS1-DLC       192.168.104.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS1-IPE       192.168.104.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS1-NIU       192.168.104.95    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS1-EFLM      192.168.0.108     root 12345            DEV-NOC-NMS   } \
+      {DEV-MSGS1-RLP       192.168.104.112   root Arclight         NoHop         } \
+      {DEV-MSGS2-NMS       192.168.106.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS2-DLC       192.168.106.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS2-IPE       192.168.106.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS2-NIU       192.168.106.95    root Rootbft1Rootbft! DEV-NOC-NMS   } \
+      {DEV-MSGS2-EFLM      192.168.0.108     root 12345            DEV-NOC-NMS   } \
+      {DEV-MSGS2-RLP       192.168.106.112   root Arclight         NoHop         } \
+      {DEV-SGS4-DLC        192.168.115.63    root Rootbft1Rootbft! NoHop         } \
+      {DEV-SGS4-EQL        192.168.115.48    root 12345            NoHop         } \
+      {DEV-SGS4-NIU        192.168.115.65    root Rootbft1Rootbft! NoHop         } \
+      {DEV-SGS4-IPE1A      192.168.115.100   root Rootbft1Rootbft! NoHop         } \
+      {DEV-SGS4-IPE1B      192.168.115.102   root Rootbft1Rootbft! NoHop         } \
+      {DEV-SGS4-EFLM1A     192.168.115.108   root 12345            NoHop         } \
+      {DEV-SGS4-EFLM1B     192.168.115.109   root 12345            NoHop         } \
+      {SI&T-NOC1-NMS       192.168.170.17    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-BNG       192.168.170.18    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-KMS1      192.168.170.19    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-KMS2      192.168.170.20    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-V3K1      192.168.170.21    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-V3K2      192.168.170.22    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-TAC       192.168.170.23    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-TAG       192.168.170.24    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-TTS       192.168.170.25    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC1-NIU       192.168.170.26    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-HUB2-NMS       192.168.102.116   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-DLC       192.168.102.118   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-NIU       192.168.102.120   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE1A     192.168.102.68    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE1B     192.168.102.70    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE1C     192.168.102.72    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE1D     192.168.102.74    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM1A    192.168.0.108     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM1B    192.168.0.109     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM1C    192.168.0.110     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM1D    192.168.0.111     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-RLP1P     192.168.102.76    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-RLP1S     192.168.102.78    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE2A     192.168.102.80    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE2B     192.168.102.82    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE2C     192.168.102.84    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE2D     192.168.102.86    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM2A    192.168.0.136     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM2B    192.168.0.137     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM2C    192.168.0.138     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-EFLM2D    192.168.0.139     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-RLP2P     192.168.102.88    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-RLP2S     192.168.102.90    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-HUB2-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {SI&T-HUB2-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
+      {VCAMSS01            192.168.250.14    hsolomon pteranad0N48 NoHop         } ]
+
+# ------------------------------------------------------
+#
+# These are for the BFT lab test setup.
+#
+#     {BFT-SGS1-EQL    192.168.3.48      root 12345            NoHop        } \
+#     {BFT-SGS1-NMS    192.168.3.62      root 12345            NoHop        } \
+#     {BFT-SGS1-DLC    192.168.3.63      root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM1A 192.168.3.108     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM1B 192.168.3.109     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM1C 192.168.3.110     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM1D 192.168.3.111     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM2A 192.168.3.136     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM2B 192.168.3.137     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM2C 192.168.3.138     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM2D 192.168.3.139     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM3A 192.168.3.164     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM3B 192.168.3.165     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM3C 192.168.3.166     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM3D 192.168.3.167     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM4A 192.168.3.192     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM4B 192.168.3.193     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM4C 192.168.3.194     root 12345            NoHop        } \
+#     {BFT-SGS1-EFLM4D 192.168.3.195     root 12345            NoHop        } \
+#     {BFT-SGS1-IPE2B  192.168.3.130     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE1A  192.168.3.100     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE1B  192.168.3.102     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE1C  192.168.3.104     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE1D  192.168.3.106     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE2A  192.168.3.128     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE2B  192.168.3.130     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE2C  192.168.3.132     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE2D  192.168.3.134     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE3A  192.168.3.156     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE3B  192.168.3.158     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE3C  192.168.3.160     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE3D  192.168.3.161     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE4A  192.168.3.184     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE4B  192.168.3.186     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE4C  192.168.3.188     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS1-IPE4D  192.168.3.190     root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-EQL    192.168.18.48     root 12345            NoHop        } \
+#     {BFT-SGS6-NMS    192.168.18.62     root 12345            NoHop        } \
+#     {BFT-SGS6-DLC    192.168.18.63     root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM1A 192.168.18.108    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM1B 192.168.18.109    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM1C 192.168.18.110    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM1D 192.168.18.111    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM2A 192.168.18.136    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM2B 192.168.18.137    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM2C 192.168.18.138    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM2D 192.168.18.139    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM3A 192.168.18.164    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM3B 192.168.18.165    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM3C 192.168.18.166    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM3D 192.168.18.167    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM4A 192.168.18.192    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM4B 192.168.18.193    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM4C 192.168.18.194    root 12345            NoHop        } \
+#     {BFT-SGS6-EFLM4D 192.168.18.195    root 12345            NoHop        } \
+#     {BFT-SGS6-IPE2B  192.168.18.130    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE1A  192.168.18.100    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE1B  192.168.18.102    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE1C  192.168.18.104    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE1D  192.168.18.106    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE2A  192.168.18.128    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE2B  192.168.18.130    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE2C  192.168.18.132    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE2D  192.168.18.134    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE3A  192.168.18.156    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE3B  192.168.18.158    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE3C  192.168.18.160    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE3D  192.168.18.161    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE4A  192.168.18.184    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE4B  192.168.18.186    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE4C  192.168.18.188    root Rootbft1Rootbft! NoHop        } \
+#     {BFT-SGS6-IPE4D  192.168.18.190    root Rootbft1Rootbft! NoHop        } ]
+# 
+
+# ------------------------------------------------------
+
+# exp_internal 1
+
+set ::error       0
+set ::success     1
+set ::spawnId     0
+set ::wantSsh     false
+set ::wantScp     false
+set ::scpFileName ""
+set ::cmdLineHostList [list 1 2 3 4]
+
+processCmdLine
+loopOverCmdLineHosts

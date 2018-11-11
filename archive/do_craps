@@ -1,0 +1,12 @@
+CRAPS_DIR=${HOME}/proj/craps/jcraps2
+DEV_ENV_SCRIPT=${HOME}/proj/craps/jcraps2/bin/setdevenv
+
+if [ -f ${DEV_ENV_SCRIPT} ]; then
+    . ${DEV_ENV_SCRIPT}
+else
+    echo "Sourcing file: can not find: \"${DEV_ENV_SCRIPT}\" "
+fi
+
+unset DEV_ENV_SCRIPT
+unset CRAPS_DIR
+

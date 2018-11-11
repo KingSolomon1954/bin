@@ -1,0 +1,10 @@
+# controlvm                 <uuid>|<name>
+#                           setvideomodehint <xres> <yres> <bpp>
+#                                           [[<display>] [<enabled:yes|no>
+#                                             [<xorigin> <yorigin>]]]
+
+/cygdrive/c/Program\ Files/Oracle/VirtualBox/VBoxManage.exe controlvm Linux-Ubuntu setvideomodehint 1920 1080 32 0 yes 0    0
+/cygdrive/c/Program\ Files/Oracle/VirtualBox/VBoxManage.exe controlvm Linux-Ubuntu setvideomodehint 1920 1080 32 1 yes 1920 0
+
+
+# Under Ubuntu, select Monitor Settings, and save as default.

@@ -1,0 +1,8 @@
+tdir=${PWD}
+for d in $(ls -d */); do
+    echo cd $d;
+    cd $d;
+    echo "$@"
+    "$@"
+    cd ${tdir}
+done

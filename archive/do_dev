@@ -1,0 +1,18 @@
+# Adds the following functions to my environment:
+#
+#	setdevenv()
+#	unsetdevenv()
+#	pcd()
+#	setplat()
+#
+devHooks=//e/shade3.0/scripts/devenvhooks.sh
+
+if [ -f ${devHooks} ]; then
+    . ${devHooks}
+    echo "Reminder, issue: setdevenv //e/proj/bwa/cdev nt4.0-ppc604"
+else
+    echo "Sourcing file: can not find: \"${devHooks}\" "
+fi
+
+unset devHooks
+

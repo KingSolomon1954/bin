@@ -1,0 +1,15 @@
+# Script file to set up 150 compile environment
+#
+
+# source stuff needed for all compiles
+. do_all
+
+# Source the 88k compiler environment, must be
+# after sourcing do_all because of path manipulation.
+
+. /projects/ibm/tools/oso150/scripts/go150
+
+# Prepare for CDPATH stuff
+TREE=/projects/ibm/develop/oso150
+
+do_cdpath $TREE howie

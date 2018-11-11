@@ -1,0 +1,82 @@
+# --------------------------------------------------
+#
+# Script to setup development environment for
+# Fore ATM stuff
+#
+# Some values are duplicated in the corresponding
+# clean up script, undo_500, so these must agree.
+#
+# --------------------------------------------------
+
+# Clean up _any_ previous environment
+. undo_all
+
+# --------------------------------------------------
+
+#
+# Determine machine architecture in order to define
+# platform specific setup; like the proper vxWorks host
+# and target.
+
+platform=$(uname)
+
+unset platform
+
+# --------------------------------------------------
+
+# Setup a CDPATH for the project
+
+declare TREEATM=$HOME/sys500/atm
+
+declare SWTREE=$HOME/sys500
+declare S1=$SWTREE/atm
+declare S2=$SWTREE/atm/driver
+declare S3=$SWTREE/atm/common
+declare S4=$SWTREE/atm/include
+declare S5=$SWTREE/atm/fcp
+declare S6=$SWTREE/atm/driver/sba200
+declare S7=/usr/users/sys500/gen/sw
+declare S8=/usr/users/sys500/gen/sw/vxworks
+declare S9=/usr/users/sys500/gen/sw/vxworks/config
+
+CDPATH=.:$SWTREE:$S1:$S2:$S3:$S4:$S5:$S6:$S7:$S8:$S9
+
+unset S1 S2 S3 S4 S5 S6 S7 S8 S9
+unset SWTREE
+
+# --------------------------------------------------
+
+# Add the vxwork's and project's script directory to $PATH
+
+declare addpath=${TREEATM}/bin
+addpath=$addpath:/usr/users/sys500/gen/sw/vxworks/solaris.sparc/bin
+
+PATH=$PATH:$addpath
+unset addpath
+
+# --------------------------------------------------
+
+# Add the VxWorks man path and project man directory
+
+alias vwman="man -M /usr/users/sys500/gen/sw/vxworks/man"
+
+declare addmanpath=/usr/users/sys500/gen/sw/man
+addmanpath=$addmanpath:/usr/users/sys500/gen/sw/vxworks/man
+addmanpath=$addmanpath:/usr/users/sys500/gen/sw/vxworks/solaris.sparc/man
+
+MANPATH=$MANPATH:$addmanpath
+unset addmanpath
+
+# --------------------------------------------------
+
+# Convenience var to get to virgin Fore files
+
+declare forebase=~blh/atm/src
+declare atmbase=$forebase
+declare baseatm=$forebase
+declare basefore=$forebase
+
+# --------------------------------------------------
+
+# end file
+

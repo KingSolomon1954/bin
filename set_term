@@ -1,0 +1,8 @@
+# Set the tty to our terminal type.
+eval `tset -s $1 -I`
+
+# Determine LINES and COLUMNS.
+eval `resize `
+
+# Give me some feedback.
+echo "TERM=$TERM"

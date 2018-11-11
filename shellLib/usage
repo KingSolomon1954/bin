@@ -1,0 +1,13 @@
+# Source this file to bring function into environment
+#
+# -------------------------------------------------------
+#
+# Output usage.
+#
+usage()
+{
+    # output prolog (up to first line that doesn't begin with #)
+    /usr/bin/sed "/^[^#]*$/q" $0
+}
+
+# -----------------------------------------------------------

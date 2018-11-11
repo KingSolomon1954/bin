@@ -1,0 +1,181 @@
+# File: do_bwa
+# 
+# Script to setup development environment
+# for broadband wireless access product
+# under NT (using cmd.exe).
+# 
+# -------------------------------------------------------
+
+# This is required by the Makefiles and it needs
+# it as a <drive letter>:<dir name> combination.
+#
+declare -x WBA_TIP_BASE=e:\\bwa
+
+# These are required by Tornado
+declare -x WIND_BASE=${WBA_TIP_BASE}\\Tools\\Tornado
+declare -x WIND_HOST_TYPE=x86-win32
+
+PATH=$(cygpath -u ${WBA_TIP_BASE}/tools/buildtools/bin):${PATH}
+PATH=$(cygpath -u ${WIND_BASE}/host/${WIND_HOST_TYPE}/bin):${PATH}
+PATH=$(cygpath -u e:/opus_make/NT):${PATH}
+if [ -d e:/Program\ Files/star\ team\ 4.0 ]; then
+    PATH=$(cygpath -u e:/Program\ Files/star\ team\ 4.0):${PATH}
+fi
+
+declare -x JAVA_HOME=e:\\jdk1.3
+
+
+# Prepare command line access to source safe
+
+# Which source safe database to connect to, needed by vss itself
+typeset -x SSDIR=i:/vssdb
+
+# Path to ss executable
+SSPATH="c:/Program Files/Microsoft Visual Studio/VSS/win32"
+
+if [ ! -d "${SSDIR}" ]; then
+    echo "Error: source safe database not found in: ${SSDIR}"
+fi
+
+if [ ! -d "${SSPATH}" ]; then
+    echo "Error: source safe executables not found in: ${SSPATH}"
+fi
+
+# Path to dev tools
+DEVPATH="${WBA_TIP_BASE}/Build"
+
+PATH=${PATH}:$(cygpath -u "${SSPATH}"):$(cygpath -u "${DEVPATH}")
+unset SSPATH DEVPATH
+
+# --------------------------------------------------
+
+function alltreegen()
+{
+    f=/tmp/all_dirs
+    (cd //e/bwa; find . -type d -print > ${f})
+}
+
+function bwatreegen()
+{
+    f=/tmp/bwa_dirs
+    tmp=/tmp/tmp$$
+    (cd //e/bwa; find . -type d -print > ${tmp})
+    grep -v -e \./Tools/Tornado2 \
+            -e \./Tools/BuildTools \
+            -e \./Tools/Rtrware \
+            -e \./Tools/Tools \
+            -e \./Tools/epilogue \
+            -e \./Tools/unzip \
+            -e \./Tools/RLI24 \
+            -e \./Tools/iwl \
+            -e \./Tools/Tornado/host \
+            -e \./Tools/Tornado/patches \
+            -e \./Tools/Tornado/target/unsupported \
+            -e \./CODEFILES \
+            -e \./Documentation \
+            -e \./FPGA \
+            -e \./PLD \
+            -e \./CIC/obj \
+            -e \./MIC/obj \
+            -e \./ATMNIC/obj \
+            -e \./ATMNIC/doc \
+            -e \./usrenv \
+            -e \./nms/obj \
+            -e \./nms/mibs \
+            -e \./nms/docs ${tmp} > ${f}
+    rm -f ${tmp}
+}
+
+function nmstreegen()
+{
+    f=/tmp/nms_dirs
+    tmp=/tmp/tmp$$
+    (cd //e/bwa/nms; find . -type d -print > ${tmp})
+    grep -v -e \./docs \
+            -e \./obj \
+            -e \./mibs \
+            -e \./dmsv1system \
+            -e \.tools ${tmp} > ${f}
+    rm -f ${tmp}
+}
+
+function bwatree()
+{
+    # The trap doesn't work reliably under cygwin
+    # trap 'cd ${curDir}; return 1' 2 15
+    curDir=$(pwd)
+    srctree //e/bwa /tmp/bwa_dirs $@
+    cd ${curDir}
+}
+
+function nmstree()
+{
+    # The trap doesn't work reliably under cygwin
+    # trap 'cd ${curDir}; return 1' 2 15
+    curDir=$(pwd)
+    srctree //e/bwa/nms /tmp/nms_dirs $@
+    cd ${curDir}
+}
+
+function alltree()
+{
+    # The trap doesn't work reliably under cygwin
+    # trap 'cd ${curDir}; return 1' 2 15
+    curDir=$(pwd)
+    srctree //e/bwa /tmp/all_dirs $@
+    cd ${curDir}
+}
+
+function srctree()
+{
+    srcDir=$1
+    dirFile=$2
+    shift; shift
+    if [ ! -f ${dirFile} ]; then
+        echo "srctree: No such input file: ${dirFile}"
+        return 1
+    fi
+    if [ ! -d ${srcDir} ]; then
+        echo "srctree: No such directory: ${srcDir}"
+        return 1
+    fi
+    while read dir; do
+        dir="cd ${srcDir}/${dir// /\\ }"
+        eval ${dir}
+        echo -e "\E[0m\E[36m${PWD}:\E[0m"
+        $@
+    done < ${dirFile}
+}
+
+function makecic()
+{
+    cd //e/bwa; \
+    make cic.st 2>&1 | tee ~/logs/cic.log ; \
+    cp //e/bwa/CODEFILES/cic_ffff.Z //e/bwa/usrenv/tffs1/cdev.0.0/bse/install/boot; \
+    cd -
+}
+
+function makecicdb()
+{
+    cd //e/bwa; \
+    make cic.st CC_OPTIM="-ggdb -DDEBUG -DNOOPTIM" 2>&1 | tee ~/logs/cic.log ; \
+    cp //e/bwa/CODEFILES/cic_ffff.Z //e/bwa/usrenv/tffs1/cdev.0.0/bse/install/boot; \
+    cd -
+}
+
+
+# --------------------------------------------------
+
+alias javalog='cat //c/WINNT/JAVA/javalog.txt'
+
+alias powercycle='expect -f d:/howie/bin/powercycle'
+alias m='make CPU=PPC604 TOOL=gnu'
+alias md='make ADDED_CFLAGS="-DDEBUG -g" CPU=PPC604 TOOL=gnu'
+alias tesla='telnet 172.20.11.7'
+alias tesla1='telnet 172.20.11.8'
+## root foobar
+
+
+# alias mmm='make CPU=PPC604 TOOL=gnu OBJECT_LOCATION=..\..\cic\obj COMPILEMAK_LOCATION=e:/bwa/cic -f unzip.mak unzip.oc
+cd //e/bwa
+

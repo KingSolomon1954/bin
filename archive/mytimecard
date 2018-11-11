@@ -1,0 +1,73 @@
+#!/usr/local/bin/expect -f
+#
+# telnets into mis and deposits you in
+# the timecard system.
+#
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+# -------------------------------------------------------
+
+proc swapPasswd pass {
+    upvar $pass p
+    global passwd1 passwd2
+    if { "$p" == "$passwd1" } {
+        set p $passwd2
+    } else {
+        set p $passwd1
+    }
+}
+
+# -------------------------------------------------------
+
+set username howie
+set passwd1 pteranadon
+set passwd2 dinosaur
+set pass $passwd1
+
+spawn telnet mis
+set timeout 40  
+expect {
+    -re "\n\rlogin|\r\nlogin: " {
+        send $username\n
+        exp_continue
+    }
+    "'s Password: " {
+        send $pass\n
+        swapPasswd pass
+        exp_continue
+    }
+    timeout {
+        send_user "Connection timed-out"
+        exit
+    }
+    "\r\nEnter Selection: "
+}
+
+set timeout 15
+
+# Select xterm terminal type
+send "X\n"
+expect "Enter Selection: $"
+
+
+# Select live account
+send "1\n"
+expect "Selection Please: "
+
+
+# Select Time Card system 
+send "7\n"
+expect "Selection Please: "
+
+
+# Select 9/80 flavor
+send "1\n"
+expect "Selection Please: "
+
+
+# Select time card edit
+send "2\n"
+interact

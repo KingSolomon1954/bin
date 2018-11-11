@@ -1,0 +1,75 @@
+# --------------------------------------------------
+#
+# Script to setup development environment for
+# Proswitch using SGI and my local tree
+#
+# Some values are duplicated in the corresponding
+# clean up script, undo_pro, so these must agree.
+#
+# --------------------------------------------------
+
+# Clean up _any_ previous environment
+. undo_all
+
+# --------------------------------------------------
+
+# Variables for VxWorks and compiling
+
+declare -x VX_HOST_TYPE=sgi
+declare -x VX_HSP_BASE=/vol/netgroup/VxWorks
+declare -x VX_BSP_BASE=/vol/netgroup/VxWorks
+declare -x VX_VW_BASE=/vol/netgroup/VxWorks
+declare -x VX_CPU_FAMILY=mips
+declare -x SGI_IRIX4=1
+declare -x TMPDIR=/vol/netgroup/tmp
+# For gui builds
+declare -x LD_LIBRARY_PATH=/lib:/usr/lib:/usr/openwin/lib:/vol/local/TeleUSE/lib
+
+# --------------------------------------------------
+
+# setup a CDPATH for the project
+
+declare TREEPRO=$HOME/proswitch
+declare L1=$TREEPRO/int
+declare L2=$TREEPRO/int/gen
+declare L3=$TREEPRO/int/gen/src
+declare L4a=$TREEPRO/int/gen/src/embedded
+declare L4b=$TREEPRO/int/gen/src/gui
+declare L4c=$TREEPRO/int/gen/src/wan
+declare L4d=$TREEPRO/int/gen/src/lib
+
+CDPATH=.:$TREEPRO:$L1:$L2:$L3:$L4a:$L4b
+
+unset L1 L2 L3 L4a L4b L4c L4d
+
+# --------------------------------------------------
+
+# Add the project's script directory to $PATH
+
+declare addpath=$TREEPRO/int/scripts
+addpath=$addpath:$VX_VW_BASE/bin/iris
+PATH=$PATH:$addpath
+unset addpath
+
+# --------------------------------------------------
+
+# Add the VxWorks man path and project man directory
+
+alias vwman="man -M $VX_VW_BASE/man"
+
+declare addmanpath=$VX_VW_BASE/man
+addmanpath=$addmanpath:$TREEPRO/int/man
+addmanpath=$addmanpath:/vol/netgroup/gnats/gnats-3.2/man
+MANPATH=$MANPATH:$addmanpath
+unset addmanpath
+
+# --------------------------------------------------
+
+# Convenience vars for the intbuild tree
+
+intb=/vol/netgroup/rel/intbuild/gen/src/embedded
+
+# --------------------------------------------------
+
+# end file
+

@@ -1,0 +1,42 @@
+#!/bin/ksh
+# Queue this job in the at queue to make the 140 tree every night
+
+# possible values for rebuild_flag
+#	rebuild_all		- deletes all objs then compiles
+#	rebuild_atx		- deletes ATX objs then compiles
+#	rebuild_server		- deletes Server objs then compiles
+#	rebuild_out_of_date	- just makes what out of date
+
+# rebuild_flag="rebuild_all"
+# rebuild_flag="rebuild_atx"
+# rebuild_flag="rebuild_server"
+# rebuild_flag="rebuild_out_of_date"
+
+rebuild_flag="rebuild_out_of_date"
+
+start_time=$(date)
+
+# Check for Sunday, Sundays are rebuild all days
+
+if [ ${start_time%%\ *} = "Sun" ]
+then
+    rebuild_flag="rebuild_all"
+fi
+
+if ~/bin/make_server 140 $rebuild_flag
+then
+    print
+    print job \ started: $start_time
+    print job finished: $(date)
+    print
+    print -n Next\ 
+    at 02:00 tomorrow nightly_make_140
+else
+    print
+    print ************ Error ************
+    print
+    print job \ started: $start_time
+    print job finished: $(date)
+fi
+
+#end file

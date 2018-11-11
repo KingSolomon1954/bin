@@ -1,0 +1,9 @@
+#/bin/bash
+
+stringBase=/sys500/gen/sw/
+
+for i in $(find . -name Makefile,v.org); do
+    # remainder=${i##$stringBase}Å
+    echo "mv $i ${i%/*}/Makefile.org,v"
+    mv $i ${i%/*}/Makefile.org,v
+done

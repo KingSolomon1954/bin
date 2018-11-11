@@ -1,0 +1,83 @@
+#    NAME
+#        cmdline - process command line args
+#
+#    SYNOPSIS
+#        cmdline option optval
+#
+#    DESCRIPTION
+#        Performs one of several command line operations,
+#        depending on "option". Command line arguments are
+#        expected with a single dash introducer and can be
+#        a word not just a single character. Multiple options
+#        may not be combined ("someprogram -dr" is
+#        very different from "someprogram -d -r").
+#        There is only one value allowed per argument.
+#
+#        The following command lines are legal:
+#
+#            expect -- -f myfile -port 10 -p hpprinter
+#
+#        The getByValue command requires the program to have
+#        procedure called "usage" defined.
+#
+#        The legal options are: 
+#
+#        cmdline count
+#            Return the number of command line arguments.
+#
+#        cmdline exists optval
+#            Returns 1 (true) if the given optval appears in
+#            the command line, othewise 0 (false). For example:
+#            cmdline exists "g" is true if "-g" is present.
+#
+#        cmdline getByValue optval
+#            Returns the value associated with the command
+#            line argument indicated by optval. For example
+#            suppose the command line is as follows:
+#            expect -- -of myfile.txt
+#            cmdline getByValue "of" returns "myfile.txt"
+#            If the argument is missing, then a procedure
+#            named "usage" is called, thus the calling program
+#            should have this defined.
+#
+#        cmdline dump
+#            Prints the command line to stdout. Meant for
+#            diagnostics.
+#
+# ------------------------------------------------------------
+
+proc cmdline { option args } {
+    global argv
+
+    switch -- $option {
+        "exists" {
+            set idx [lsearch $argv $args]
+            if { $idx > -1 } {
+                return 1
+            }
+            return 0
+        }
+        "getByName" {
+            set idx [lsearch $argv $args]
+            if { $idx == -1 } {
+                usage
+            }
+            set numArgs [llength $argv]
+            if { $idx == $numArgs - 1 } { 
+                # Found -arg, but no value at end of args.
+                usage
+            }
+            return [lindex $argv [incr idx]]
+        }
+        "count" {
+            return [llength $argv]
+        }
+        "dump" {
+            puts $argv
+        }
+        default {
+            puts "Unrecognized option to cmdline: \"$option\""
+            exit 1
+        }
+    }
+}

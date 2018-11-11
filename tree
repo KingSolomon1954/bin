@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# set -x
+# topDir=`pwd`
+# for dir in $(find . ! -name CVS -type d -print); do
+#     echo Before: ${dir}
+#     dir="cd ${dir// /\\ }"
+#     echo After: ${dir}
+#     eval ${dir}
+#     echo ${PWD}:
+#     "$@"
+#     cd ${topDir}
+# done
+
+tmpFile=/tmp/tree$$
+find . ! -name CVS -type d -print > ${tmpFile}
+topDir=$(pwd)
+while read dir; do
+    # echo Before: ${dir}
+    dir="cd ${dir// /\\ }"
+    # echo After: ${dir}
+    eval ${dir}
+    echo -e "\E[0m\E[36m ${PWD}:\E[0m"
+    $@
+    cd ${topDir}
+done < ${tmpFile}
+rm ${tmpFile}

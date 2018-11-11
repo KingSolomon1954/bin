@@ -1,0 +1,3 @@
+# Capture make errors to a file. 
+
+make $@ > make.errs 2>&1

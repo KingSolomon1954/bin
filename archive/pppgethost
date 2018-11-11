@@ -1,0 +1,3 @@
+ifconfig | grep P-t-P | \
+	awk 'BEGIN { FS = ":" } { print $2 }' | \
+	awk '{print $1 }'

@@ -1,0 +1,500 @@
+#
+# switchover
+# Test switchovers between cards by resetting them periodically
+#
+
+proc usage {} {
+  puts -nonewline "Usage: switchover \[-sleep <seconds>] \[-count <count>]"
+  puts -nonewline "\[-username <username>] \[-password <password>]"
+  puts -nonewline " -type <mic|nic|cic> -addr <IPAddress|Name> <card1> <card2>"
+  puts "Defaults are: sleep=1800, count=10"
+  exit 1
+}
+
+set AllowedCardTypes [list "cic" "mic" "nic"]
+
+set Command(nic) 252
+set Command(mic) 253
+set Command(cic) 254
+
+proc main args {
+  global AllowedCardTypes
+
+  set lenArgs [llength $args]
+
+  if { $lenArgs == 0 || [lindex $args 1] == "-h" || 
+       [lindex $args 1] == "--help"} {
+    usage
+  }
+
+  # defaults
+  # Default switchover sleep is 30 minutes
+  ##set sleep 18
+  set sleep 1800
+  set count 10
+  set command 254
+  
+  set logfilename [timestamp -format "%m-%d-%y__%H-%M-%S.log"]
+  puts "logfilename is $logfilename"
+  log_file -a $logfilename
+
+  for {set argIndex 0} {$argIndex < $lenArgs} {incr argIndex} {
+    set arg [lindex $args $argIndex]
+
+    if { [string index $arg 0] != "-" } {
+      break
+    }
+    set arg [string range $arg 1 end]
+
+    if { $lenArgs == $argIndex + 1 } {
+      usage
+    }
+    
+    set val [lindex $args [incr argIndex]]
+
+    switch -- $arg {
+      "addr" -
+      "command" -
+      "password" -
+      "username" -
+      "count" -
+      "sleep" {
+	set $arg $val
+      }
+      "h" -
+      "-help" { 
+	usage
+      }
+      "type" {
+	set type $val
+	if { [lsearch $AllowedCardTypes $val] == -1 } {
+	  puts "Unknown card type $val"
+	  usage
+	}
+      }
+      default {
+	puts "Unknown switch $arg"
+	usage
+      }
+    }
+  }
+
+  if { [llength $args] - $argIndex < 2 } {
+    puts "No cards listed"
+    usage
+  }
+
+  if { ! [info exists addr] } {
+    puts "The -addr argument is missing"
+    usage
+  }
+
+  set cardList [lrange $args $argIndex end]
+  if { [llength $cardList] != 2 } {
+    puts "There must be two cards listed"
+    usage
+  }
+
+  if { $type == "cic" } {
+     set spid [connect $addr $username $password [lindex $cardList 0]]
+  } else {
+     set spid [connect $addr $username $password]
+  }
+  
+  switchover $spid $type $count $cardList $sleep
+}
+
+
+# ConnectInfo is a global used to store information to 
+# support reconnecting to the CIC when the connection is dropped.
+
+set ConnectInfo(spawnId) -1
+
+proc connect {cardIp username password args} {
+    global ConnectInfo
+
+    puts "connect $cardIp $username $password $args"
+
+    if { $args != "" } {
+	set slot $args
+    } else {
+	set slot 1
+    }
+
+    # Figure out if we need to extrapolate the IP address
+    if { [llength [split $cardIp .]] == 3 } {
+	set classC [expr 100 + $slot]
+	
+	set computedIP "$cardIp.$classC"
+    } else {
+	set computedIP $cardIp
+    }
+    
+    send_user "\n*** Connecting to $computedIP\n"
+    spawn s:/buildsw/cygwin/bin/telnet $computedIP
+    
+    send_user "*** Waiting for login prompt\n"
+    expect {
+	-timeout 10
+	--
+	"->" {
+	    set securityEnabled 0
+	}
+	"ogin:" {
+	    set securityEnabled 1
+	    send "$username\n"
+	}
+	timeout {
+	    send_user "\n*** Timeout after no password prompt received.\n"
+	    log_file
+	    exit 1
+	}
+	eof {
+	    send_user "\n*** Timeout after no password prompt received.\n"
+	    log_file
+	    exit 1
+	}
+    }
+    
+    if { $securityEnabled } {
+	set loginComplete 0
+        
+	# look for Password prompt
+	send_user "*** Waiting for password prompt\n"
+	expect {
+	    -timeout 10
+	    --
+	    "->" {
+		set loginComplete 1
+	    }
+	    "assword:" {
+		send "$password\n"
+	    }
+	    timeout {
+		send_user "\n*** Timeout after no password prompt received.\n"
+		log_file
+		exit 1
+	    }
+	    eof {
+		send_user "\n*** Timeout after no password prompt received.\n"
+		log_file
+		exit 1
+	    }
+	}
+	
+	if { ! $loginComplete } {
+	    expect {
+		-timeout 30
+		--
+		"->" { }
+		timeout {
+		    puts "Timeout waiting for $computedIP"
+		    log_file
+		    exit 1
+		}
+		eof {
+		    puts "EOF waiting for $computedIP"
+		    log_file
+		    exit 1
+		}
+	    }
+	}
+    }
+    
+    puts "Connected."
+    
+    set ConnectInfo(spawnId) $spawn_id
+    set ConnectInfo(cardIp) $cardIp
+    set ConnectInfo(username) $username
+    set ConnectInfo(password) $password
+    
+    return $spawn_id
+}
+
+################
+# FUNCTION: reconnect
+# Reconnect at the old address.  This is useful for CIC switchovers
+################
+
+proc reconnect {args} {
+    global ConnectInfo
+
+    puts "Reconnect $args"
+
+    if { $ConnectInfo(spawnId) == -1 } {
+	puts "ERROR: reconnect called before connect.\n"
+	exit 1
+    }
+
+    if {$args == "" } {
+	set spawn_id [connect $ConnectInfo(cardIp) $ConnectInfo(username) \
+			  $ConnectInfo(password)]
+    } else {
+	set spawn_id [connect $ConnectInfo(cardIp) $ConnectInfo(username) \
+			  $ConnectInfo(password) $args]
+    }
+    
+    return $spawn_id
+}
+
+proc switchover {spid type maxCount cardList sleep} {
+    global Command
+    
+    if { [llength $cardList] > 1 } {
+	set cardWord "cards"
+    } else {
+	set cardWord "card"
+    }
+    
+    send_user "\n*** Switchover $cardWord $cardList every $sleep seconds\n"
+    
+    set spawn_id $spid
+    
+    # Start with the first card as the old card.
+    set cardIndex 0
+    set old [lindex $cardList 0]
+    
+    send "\n"
+    expect {
+	-timeout 60
+	--
+	"->" {}
+	timeout {
+	    puts "Timeout waiting for prompt"
+	    log_file
+	    exit 1
+	}
+	eof {
+	    puts "EOF waiting for prompt"
+	    log_file
+	    exit 1
+	}
+    }
+    
+    set cmd "cs_log_setfd(1)"
+    send "$cmd\n"
+    set cmd "cs_log_setfd(2)"
+    send "$cmd\n"
+    
+    # Setup debugging
+    set cmd "cs_log_set_priority(0x00)"
+    puts "Sending $cmd"
+    send "$cmd\n"
+    
+    set cmd "cs_log_set_TaskFiltering(0)"
+    puts "Sending $cmd"
+    send "$cmd\n"
+    
+    set cmd "ccLogDebug2=1"
+    puts "Sending $cmd"
+    send "$cmd\n"
+    
+    set cmd "disableMICSwitchover(1)"
+    puts "Sending $cmd"
+    send "$cmd\n"
+    
+    set cmd "disableNICSwitchover(1)"
+    puts "Sending $cmd"
+    send "$cmd\n"
+    
+#    set cmd "cbmDisable"
+#    puts "Sending $cmd"
+#    send "$cmd\n"
+    
+    set cmd "setRebootBSFlag 0"
+    puts "Sending $cmd"
+    send "$cmd\n"
+    
+    for {set count 0} {$count < $maxCount} {incr count} {
+	if { [incr cardIndex] == [llength $cardList] } {
+	    set cardIndex 0
+	}
+	set new [lindex $cardList $cardIndex]
+	
+	send_user "\n*** Switchover from $old to $new\n"
+	
+	# If this is a CIC switchover, then go to the standby card
+	# before I issue the command.
+	if { $type == "cic" } {
+	    # The current CIC is dead, and the IP address is being
+	    # picked up by the standby right now,
+	    # so I need to reconnect the telnet session.
+	    
+	    catch {close $spawn_id}
+	    set spawn_id [reconnect $new]
+	    
+	    send_user "\n*** Reconnected to standby CIC"
+	    
+            set cmd "cs_log_set_priority(0x00)"
+            puts "Sending $cmd"
+            send "$cmd\n"
+    
+            set cmd "cs_log_set_TaskFiltering(0)"
+            puts "Sending $cmd"
+            send "$cmd\n"
+    
+            set cmd "ccLogDebug2=1"
+            puts "Sending $cmd"
+            send "$cmd\n"
+    
+	    set cmd "disableMICSwitchover(1)"
+	    puts "Sending $cmd"
+	    send "$cmd\n"
+	    
+	    set cmd "disableNICSwitchover(1)"
+	    puts "Sending $cmd"
+	    send "$cmd\n"
+	    
+#            set cmd "cbmDisable"
+#            puts "Sending $cmd"
+#            send "$cmd\n"
+	    
+            set cmd "setRebootBSFlag 0"
+	    puts "Sending $cmd"
+	    send "$cmd\n"
+           
+	}
+	
+	set cmd "notifyRM($Command($type),$old,$new)"
+	send_user "\n*** Sending $cmd\n"
+	set timeout 60
+	
+	send "$cmd \n"
+	send_user "$cmd\n"
+
+	# Check on the state of the new active card
+	
+	waitForActive $spawn_id $type $new $count
+	
+	send_user "\n*** Sleep 2 seconds before resetting old card \n"
+	sleep 10
+	
+	resetOldCard $spawn_id $type $old $count
+	
+	set old $new
+	
+	set userStr "\n*** End of iteration $count :"
+	append userStr " sleeping for $sleep seconds\n"
+	send_user $userStr
+	sleep $sleep
+    }
+}
+
+proc waitForActive {spawnId type new count} {
+    set spawn_id $spawnId
+    
+    set active 0
+    set startTime [clock seconds]
+    set maxWait 600
+    
+    while { ! $active } {
+	sleep 5
+	send_user "\n*** Waiting for $new to go active\n"
+	send "bsmShowLocalState $new\n"
+	expect {
+	    -timeout 120
+	    "providing_service" {
+		puts "$type $new is now providing service"
+		set active 1
+	    } 
+	    "hot_standby" {
+		if { ([clock seconds]-$startTime) > $maxWait } {
+		    puts "$type $new didn't go active within $maxWait seconds"
+		    exit 1
+		}
+	    }
+	    timeout {
+		set userStr "\n*** Timeout after"
+		append userStr " switchover command sent"
+		append userStr " (iteration $count).\n"
+		send_user $userStr
+		log_file
+		exit 1
+	    }
+	    eof {
+		set userStr "\n*** EOF after switchover"
+		append userStr " command sent"
+		append userStr " (iteration $count).\n"
+		send_user $userStr
+		log_file
+		exit 1
+	    }
+	}
+    }
+}
+
+proc resetOldCard {spawnId type old count} {
+    set spawn_id $spawnId
+    
+    if {$old != 3} {
+	send_user "\n*** Reset $old"    
+	set cmd "notifyRM(63,2,$old)"
+	send_user "\n*** Sending $cmd\n"
+	set timeout 600
+	
+	send "$cmd \n"
+	
+	set notDone 1
+	set startTime [clock seconds]
+	set maxWait 600
+	set armed 0
+	set cmd "bsmShowLocalState $old"                
+	
+	while { $notDone } {
+	    sleep 20
+	    if { $armed } {
+		send_user "\n*** Waiting for $old to initialize\n"
+	    } else {
+		send_user "\n*** Waiting for command echo\n"
+	    }
+	    send_user "\n*** Sending $cmd\n"
+	    send "$cmd\n"
+	    
+	    # Wait till we see an echo of our command before we accept
+	    # the proc_empty as for our slot
+	    expect {
+		-timeout 120
+		-re {proc_empty_set} {
+		    if { $armed } {
+			send_user "\n$type $old BOOTED SUCCESSFULLY\n"
+			set notDone 0
+		    }
+		}
+		"Card table state variables for slot $old" {
+		    set armed 1
+		    send_user "\n*** Now looking for proc_empty_set\n"
+		    exp_continue
+		}
+		-re "->" {
+		    set armed 0
+		    send_user "\n*** Now looking for 'slot $old' message"
+		}
+		timeout {
+		    set userStr "\n*** Timeout after dead $type"
+		    append userStr " reset command sent (iteration $count).\n" 
+		    send_user $userStr
+		    log_file
+		    exit 1
+		}
+		eof {
+		    set userStr "\n*** EOF after dead $type"
+		    append userStr " reset command sent (iteration $count).\n"
+		    send_user $userStr
+		    log_file
+		    exit 1
+		}
+	    }
+	    
+	    if { ([clock seconds]-$startTime)  > $maxWait } {
+		set userStr "Standby didn't go into service after"
+		append userStr " $maxWait seconds"
+		send_user "$userStr\n"
+		exit 1
+	    }
+	}
+    } else {
+	send_user "\n*** Not Resetting $old as per switchover design\n"
+    }
+}
+
+eval main $argv

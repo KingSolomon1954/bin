@@ -1,0 +1,1 @@
+exec ~/pkg/ctags/ctags -NR --format=1

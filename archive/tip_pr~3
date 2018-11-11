@@ -1,0 +1,11 @@
+#!/usr/local/bin/expect -f
+
+spawn rlogin 128.1.2.167
+
+expect {\-\>}
+send "cd \"/home/netgroup/howie/Proswitch/Pci/Programs\" \r"
+expect {\-\>}
+# expect { "value = 0 = 0x0\r" }
+send "tyBackspaceSet(0x7f)\r"
+expect {\-\>}
+interact

@@ -1,0 +1,94 @@
+#!/usr/local/bin/expect -f
+#
+# Tips into Sikorsky 550 VxWorks platform
+#
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+set sikorsky_1 128.1.1.67
+set sikorsky_2 128.1.1.68
+set orion      128.1.1.62
+set atm550b    128.1.2.247
+
+set access_method telnet           ;# one of [ telnet | rlogin | tip ]
+
+# Specify the IP address, host name, or tip port name
+set ipaddr_or_host $atm550b
+
+set std_vxw_prompt "\-\>"
+set vxw_prompt "550b-psp1\>"
+
+set delete         0x7f
+set backspace      0x08
+set backspace_code $delete
+
+# Don't reference DISPLAY unless it exists, scripts aborts otherwise
+if { [info exists env(DISPLAY)] } {
+    ;# Tell VxWorks to use the backspace character if using my PC
+    if { "$env(DISPLAY)" == "howie-pc.ltis.loral.com:0.0" } {
+       set backspace_code $backspace
+    }
+}
+
+set count 0
+while {1} {
+    incr count
+    # Attach to vxworks target. But tip in only once.
+    if { "$access_method" != "tip" || $count == 1 } {
+        spawn $access_method $ipaddr_or_host
+    }
+    expect "$vxw_prompt"
+    send "\rtyBackspaceSet($backspace_code)\r"
+    expect "*boot completed successfully"
+    send "\rtyBackspaceSet($backspace_code)\r"
+    # Use "~r" to reboot, This will put us in the auto reconnect sequence.
+    interact {
+        ~r { 
+               send "arbRst\r"
+               puts "\n\n\rRebooting..."
+               puts "\n\rand then Reconnecting...\n\r"
+               set timeout 60
+               puts "Waiting 10 seconds...\r"
+               sleep 10
+               continue
+           }
+    }
+    # We're here if "interact" exits, meaning we logged off VxWorks box
+    break
+}
+
+# -------------------------------------------------------
+
+# I abandoned the following procedure and while loop
+# cause expect has difficulty recognizing the ~r in the
+# interact statement. The code would have been cleaner
+# otherwise. I suspect the problem is due to explicitly
+# associating a spawned id with the interact statement.
+# 
+# proc attach_vxw_target { target method prompt } {
+#     global backspace_code
+#     spawn $method $target
+#     set spid $spawn_id
+#     expect "$prompt"
+#     send "tyBackspaceSet($backspace_code)\r"
+#     expect "$prompt"
+#     return $spid
+# }
+# 
+# while {1} {
+#     # attach to vxworks target, obtain spawned process id
+#     set spid [ attach_vxw_target $ipaddr_or_host $access_method $vxw_prompt ]
+#     # Use "~r" to reboot, This will put us in the auto reconnect sequence.
+#     interact -i $spid {
+#         ~r { 
+#                puts "Going to reboot\n"
+#                send "arbRst\r"
+#            }
+#     }
+# }
+
+# -------------------------------------------------------
+
+# end file

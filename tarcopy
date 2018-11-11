@@ -1,0 +1,9 @@
+# copies a directory hierarchy using tar preserving
+# symbolic links.
+#
+#	$1 - source directory
+#	$2 - destination directory
+
+fromdir=$1
+todir=$2
+cd $fromdir; tar cf - . | (cd  $todir;  tar xfBp -)

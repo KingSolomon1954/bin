@@ -1,0 +1,1 @@
+tgtsvr.exe 172.20.12.81 -n howie_slot_1 -c e:/bwa/CODEFILES/cic_ffff -V &

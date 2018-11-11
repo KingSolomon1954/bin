@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+# FILE
+#       h2d - hex to decimal conversion
+#
+# SYNOPSIS
+#       h2d [0x]<hex number> ...
+#
+# DESCRIPTION
+#	Converts numbers from hex to decimal
+#       
+# OPTIONS
+#       None
+#
+# EXAMPLE
+#       h2d 0xabcd1234
+#
+# ENVIRONMENT
+#       None.
+#
+# -----------------------------------------------------------
+
+conv2hex ()
+{
+	# Use bc to convert from hex to decimal
+	hval=$(echo $1 | tr a-z A-Z)
+	{
+		echo "ibase = 16"
+		echo "a = $hval"
+		echo "a"
+	} | bc
+}
+
+
+while [ $# != 0 ]
+do
+	hexvalue=${1#0x}
+	hexvalue=${hexvalue#0X}
+
+	conv2hex $hexvalue
+
+	if [ $# != 0 ]; then
+		shift
+	fi
+done

@@ -1,0 +1,69 @@
+# tty and TERM settings, sourced at login
+# Separate file so I can source it as needed
+
+platform=$(uname)
+if [ "${platform}" = "AIX" ]; then
+	if [ ${TERM} = "vs100" ]; then
+		# echo "Setting termcap for vs100"
+		# I took this termcap entry from Sun's termcap
+		TERMCAP="xterm|vs100:AL=\E[%dL:DC=\E[%dP:DL=\E[%dM:DO=\E[%dB:IC=\E[%d@:UP=\E[%dA:al=\E[L:am:bs:cd=\E[J:ce=\E[K:cl=\E[H\E[2J:cm=\E[%i%d;%dH:co#80:cs=\E[%i%d;%dr:ct=\E[3k:dc=\E[P:dl=\E[M:im=\E[4h:ei=\E[4l:mi:ho=\E[H:is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;3;4;6l\E[4l:rs=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;3;4;6l\E[4l\E<:k1=\EOP:k2=\EOQ:k3=\EOR:k4=\EOS:kb=^H:kd=\EOB:ke=\E[?1l\E>:kl=\EOD:km:kn#4:kr=\EOC:ks=\E[?1h\E=:ku=\EOA:li#65:md=\E[1m:me=\E[m:mr=\E[7m:ms:nd=\E[C:pt:sc=\E7:rc=\E8:sf=\n:so=\E[7m:se=\E[m:sr=\EM:te=\E[2J\E[?47l\E8:ti=\E7\E[?47h:up=\E[A:us=\E[4m:ue=\E[m:xn:"
+	else
+		if command type tset > /dev/null 2>&1; then
+			eval $(tset -Q -s -m network:${TERM} vt100)
+		fi
+	fi
+	# Disable ctrl-s and ctrl-q so they pass thru to emacs
+	stty -ixon lnext ^- dsusp ^- quit ^t
+elif [ "${platform}" = "SunOS" ]; then
+	if command type tset > /dev/null 2>&1; then
+		eval $(tset -Q -I -s -m dialup:vt220 -m network:${TERM})
+        fi
+	# Disable ctrl-s and ctrl-q so they pass thru to emacs
+	stty -ixon lnext ^- dsusp ^- quit ^t
+elif [ "${platform}" = "ULTRIX" ]; then
+	if [ "${TERM}" = "vt220" ]; then
+		TERM=vt200
+	fi
+	if command type tset > /dev/null 2>&1; then
+		eval $(tset -Q -I -s -m dialup:vt200 -m network:$TERM vt200)
+	fi
+	# Disable ctrl-s and ctrl-q so they pass thru to emacs
+	stty -ixon lnext ^- dsusp ^- quit ^t
+elif [ "${platform}" = "IRIX" -o "${platform}" = "IRIX64" ]; then
+	if [ "$TERM" = "dialup" ]; then
+		TERM=vt220
+	fi
+	if command type tset > /dev/null 2>&1; then
+		# IRIX doesn't like -m in the tset command.
+		eval $(tset -Q -I -s)
+	fi
+	# Get interrupt key off of backspace and onto control-c
+	# where it belongs. Suspend key is ctrl-z
+	# Disable ctrl-s and ctrl-q so they pass thru to emacs
+	stty -ixon lnext ^- dsusp ^- intr ^C susp ^Z quit ^t
+elif [ "${platform}" = "HP-UX" ]; then
+	if [ "$TERM" = "dialup" ]; then
+		TERM=vt220
+	fi
+	if command type tset > /dev/null 2>&1; then
+		 eval $(tset -Q -I -s -m dialup:vt220 -m network:${TERM})
+	fi
+	# Get interrupt key off of backspace and onto control-c
+	# where it belongs. Suspend key is ctrl-z
+	# Disable ctrl-s and ctrl-q so they pass thru to emacs
+	stty -ixon intr ^C quit ^t
+elif [ "${platform}" = "OSF1" ]; then
+	if [ "$TERM" = "dialup" ]; then
+		TERM=vt220
+	fi
+	if command type tset > /dev/null 2>&1; then
+		eval $(tset -Q -I -s -m dialup:vt220 -m network:${TERM})
+	fi
+	# Get interrupt key off of backspace and onto control-c
+	# Clear ctrl-s and ctrl-q so they pass thru to emacs
+	stty -ixon lnext ^- dsusp ^- discard ^- stop ^- start ^- quit ^t
+fi
+
+echo "TERM = ${TERM}"
+# echo "TERMCAP = ${TERMCAP}"
+

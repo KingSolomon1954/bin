@@ -1,0 +1,97 @@
+# --------------------------------------------------------------
+#
+# File Name: make.encode
+#
+# Script file to create a self decoding script file
+# suitable for mailing multiple files.
+#
+# This script file will tar, compress and then uuencode a
+# given list of files into a single file, and then place
+# this encoded file in a script file "wrapper" which can
+# then be mailed.  The mailed wrapper script file can be
+# executed by the recipient and will self extract all the
+# files.
+# 
+# To use this utility:
+# 
+#   1.  copy this script file to your space
+#   2.  change the list of tar'ed files below
+#   3.  change the variable "base" to a name you want.
+# 
+# This script file will create the following files:
+# 
+#   $base
+#   $base.tar
+#   $base.tar.Z
+#   $base.tar.Z.encode
+# 
+# File "$base" will be the one you want to mail.
+#
+# --------------------------------------------------------------
+
+strip_name ()
+{
+  word_count=$1
+}
+
+
+typeset base=conStuff
+
+tar cf $base.tar	Makefile	\
+			ansi.h		\
+			ansiterm.c	\
+			ansiwrt.c	\
+			console.c	\
+			cp2def.h	\
+			dac.c		\
+			fixed.h		\
+			racerx.h	\
+			regdef.h	\
+			setup_hw_gc.s	\
+			unixALib.h	\
+			unixALib.s	\
+			unixLib.c
+
+compress $base.tar
+word_count=`wc -c $base.tar.Z`
+uuencode $base.tar.Z $base.tar.Z > $base.tar.Z.encode
+strip_name $word_count
+echo "#----------------------------------- CUT HERE -------------------------------" > $base
+echo "#!/bin/sh" >> $base
+echo "# This is a shell archive, meaning:" >> $base
+echo "# 1. Remove everything above the #!/bin/sh line." >> $base
+echo "# 2. Save the resulting text in a file." >> $base
+echo "# 3. Execute the file with /bin/sh (not csh)" >> $base
+echo "#" >> $base
+echo "# Using uudecode, this file creates:"  >> $base
+echo "#       $base.tar.Z"  >> $base
+echo "# Then, uncompresses it with:" >> $base
+echo "#       uncompress $base.tar.Z" >> $base
+echo "# Then, unTars it:" >> $base
+echo "#       tar xvf $base.tar" >> $base
+echo "#" >> $base
+echo "# You may want to execute this in an empty directory." >> $base
+echo "#" >> $base
+echo "export PATH; PATH=/bin:/usr/bin:\$PATH" >> $base
+echo "echo \"extracting '$base.tar.Z'\" '($word_count characters)'" >> $base
+echo if test -f $base.tar.Z >> $base
+echo then >> $base
+echo "        echo \"I will not over-write existing file '$base.tar.Z'\"" >> $base
+echo else >> $base
+echo "uudecode << \SHAR_EOF" >> $base
+cat $base.tar.Z.encode >> $base
+echo SHAR_EOF >> $base
+echo "if test $word_count -ne \"\`wc -c < '$base.tar.Z'\`\"" >> $base
+echo then >> $base
+echo "        echo \"error transmitting '$base.tar.Z'\" '(should have been $word_count characters)'" >> $base
+echo "        exit 0" >> $base
+echo fi >> $base
+echo fi >> $base
+echo uncompress $base.tar.Z >> $base
+echo tar xvf $base.tar >> $base
+echo exit 0 >> $base
+echo "#       End of shell archive" >> $base
+echo "#---------------------------------  EOF  -----------------------------------" >> $base
+chmod u+x $base
+echo
+echo "File '$base' can now be mailed or executed to extract the files."

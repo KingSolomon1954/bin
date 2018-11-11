@@ -1,0 +1,61 @@
+#!/bin/env bash
+#
+# FILE
+#     startadventnet - fire up Adventnet MIB brower with the proper
+#                      MIBs loaded for my dev env.
+#
+# SYNOPSIS
+#     startadventnet
+#
+# OPTIONS
+#     None
+#
+# DESCRIPTION
+#     Starts the AdventNet MIB browser
+#
+# EXAMPLE
+#     startadventnet
+#
+# ENVIRONMENT
+#     Nothing special required
+#
+# BUGS
+#     No known bugs.
+#
+# -----------------------------------------------------------
+
+# Main body of script. 
+#
+main ()
+{
+    ensMib="e:\proj\bwa\cdev\nt4.0-ppc604\nms\src\ManagedObjects\ensemble.mib"
+    ensMibTc="e:\proj\bwa\cdev\nt4.0-ppc604\nms\src\ManagedObjects\ensemble-tc.mib"
+    advHome="e:\Program Files\AdventNet\AdventNetSNMPv2"
+    cd "${advHome}"\\mibs
+    javaw -cp "e:\jdk1.3\lib\classes.zip;..\MibBrowser;.;..\classes;..\swingall.jar;" \
+        MibBrowserApplication \
+        -m "${ensMib} ${ensMibTc} ATM-MIB IF-MIB" \
+        -h 172.20.12.81 \
+        -c howie
+
+    # clean up and exit
+    exitClean 0
+}
+
+# -----------------------------------------------------------
+#
+# Clean up any resources that were reserved (temporary files, etc), then exit
+# with the passed exit status.
+#
+exitClean ()
+{
+    # exit with passed exit status (if not specified, default to 1)
+    exit ${1:-1}
+}
+
+# -----------------------------------------------------------
+#
+# Invoke the main body of the script. This must appear at the bottom of
+# the script so all functions are visible to main().
+#
+main "$@"

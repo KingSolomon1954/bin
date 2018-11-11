@@ -1,0 +1,47 @@
+#!/bin/expect -f
+#
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+# Arg 0 is the host to login to
+set port [lindex $argv 0]
+
+set digiport 172.20.11.6
+set access_method telnet
+set ipaddr_or_host $digiport
+
+set std_vxw_prompt "\-\>"
+set timeout 1000000
+
+spawn $access_method $ipaddr_or_host $port
+sleep 4
+send "\r\r"
+# expect "$std_vxw_prompt"
+
+set count 0
+while {1} {
+    incr count
+
+    send "sysHwReset\r"
+    expect -re ".* Description: Cold Start\n"
+    puts "\n\n\n\r ======================== Rebooting: count $count \n\n\n"
+
+    send "cs_log_set_priority(0)\r"
+    sleep 1
+    send "cs_log_set_TaskFiltering(0)\r"
+    sleep 1
+    if { "$port" == "2001" } {
+        send "fbCicSendUserMsg(62,1,1)\r"
+        expect -re ".* Received I2C bus master ack from slot 1\n"
+    } else {
+        send "fbCicSendUserMsg(62,0,2)\r"
+        expect -re ".* Received I2C bus master ack from slot 2\n"
+    }
+    sleep 4
+}
+
+# -------------------------------------------------------
+
+# end file

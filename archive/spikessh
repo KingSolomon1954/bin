@@ -1,0 +1,70 @@
+#!/usr/bin/expect
+
+# ------------------------------------------------------
+
+proc loginToPbr {} {
+    
+    set cnt 0
+
+    spawn ssh root@119.36.186.44
+    set ::pbrSpawnId $spawn_id
+    
+    expect {
+        -timeout 60
+        --
+        "(yes/no)? " {
+            send "yes\r"
+            exp_continue
+        }
+        -nocase "password: " {
+            send root\r
+            exp_continue
+        }
+        "#" {
+            # We're in.
+            # Disable the --more-- division in output and
+            # enable configuration mode
+            send "Boo\r"
+            expect "#"
+        }
+        -nocase "denied" {
+            exp_continue
+        }
+        timeout {
+            if {$cnt < 3} {
+                incr cnt
+                exp_continue
+            }
+            error "Timedout waiting for password prompt"
+        }
+        eof {
+            puts "eof from ssh"
+        }
+    }
+}
+
+# ------------------------------------------------------
+
+set pbrSpawnId 0
+
+set n 0
+while {1} {
+    incr n
+    set t "[timestamp -format %c]"
+    puts "$n $t"
+
+    if {[catch {loginToPbr} err]} {
+        puts "Caught it"
+        if {$::pbrSpawnId != 0} {
+            wait -i $::pbrSpawnId
+            catch {close -i $::pbrSpawnId}
+            set ::pbrSpawnId 0
+            sleep 2
+        }
+    }
+
+
+    # loginToPbr
+    # sleep 20
+}
+

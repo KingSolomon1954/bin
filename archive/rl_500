@@ -1,0 +1,54 @@
+#!/usr/local/bin/expect -f
+#
+# rlogins to a sys500 workstation as user sys500
+# and sets up an environment.
+#
+# SYNOPSIS
+#	rl_500 <hostname> ...
+#
+# ----------------------------------------------------
+
+# Uncomment next line for debug
+# exp_internal 1
+
+set sikorsky_1 128.1.1.67
+set sikorsky_2 128.1.1.68
+
+set orion_ip      128.1.1.62
+
+# Arg 0 is the host to login to
+set host [lindex $argv 0]
+
+if { "$host" == "orion" } {
+    set host_ip $orion_ip
+} elseif { "$host" == "sikorsky_1" } {
+    set host_ip $sikorsky_1
+} else {
+    set host_ip $host
+}
+
+set mydisp ":0"
+if { [info exists env(DISPLAY)] } {
+    set mydisp $env(DISPLAY)
+}
+
+puts "host = $host host_ip = $host_ip display = $mydisp"
+spawn rlogin $host_ip -l sys500
+
+expect "Password:"
+send "sys500\r"
+
+expect "\r\n*>\r\n"
+send "stty erase ^H\r"
+send "setenv TERM xterm\r"
+send "tset -s -I -Q > /tmp/x123; source /tmp/x123; rm -f /tmp/x123\r"
+send "setenv DISPLAY $mydisp\r"
+
+send "alias l 'ls -LF'\r"
+send "alias L 'ls -lisag \\!\* | more'\r"
+send "alias cd 'chdir \\!\* ; set prompt = \"`hostname`:`pwd`> \"'\r"
+
+# expect "\r\n*>\r\n"
+interact
+
+# end file

@@ -1,0 +1,1 @@
+/cygdrive/c/Program\ Files/Oracle/VirtualBox/VBoxManage.exe modifyvm Linux-Ubuntu --natdnshostresolver1 on

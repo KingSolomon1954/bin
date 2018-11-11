@@ -1,0 +1,5 @@
+#
+stty erase 
+TERM=vt220
+TERMCAP=/etc/termcap
+export TERM TERMCAP

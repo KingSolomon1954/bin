@@ -1,0 +1,157 @@
+#!/bin/sh
+#
+# FILE
+#     pmake - (parallel make) "make" in parallel platform directories
+#
+# SYNOPSIS
+#     pmake [...]
+#
+# OPTIONS
+#     [...] = arguments passed on to "hmake" when it is invoked
+#
+# DESCRIPTION
+#     This is a development environment tool which can be invoked
+#     in any subdirectory of a platform tree to have "hmake" invoked
+#     in the same subdirectory under each parallel platform tree.
+#     Each "hmake" will invoke "make" on a host appropriate for
+#     the platform.
+#
+#     "pmake" allows developers to perform builds in the same
+#     subdirectory under every platform tree without having to
+#     change to each platform tree and run "make" separately.
+#
+# EXAMPLE
+#     pmake file.o
+# 
+# ENVIRONMENT
+#     No environment variables.
+#
+# BUGS
+#     No known bugs.
+#
+# -----------------------------------------------------------
+
+# Main body of script. 
+#
+main ()
+{
+    # set to call exitClean on SIGINT(2) or SIGTERM(15)
+    trap 'exitClean 1' 2 15
+
+    # parse arguments
+    while [ $# -ne 0 ]; do
+
+        case $1 in
+        -help)
+            usage
+            exitClean 0;;
+        *)
+            # if arg has white spaces, preserve it with single quotes
+            if echo $1 | grep ".[   ]" > /dev/null 2>&1; then
+                makeArgs="${makeArgs} '$1'"
+            else
+                makeArgs="${makeArgs} $1"
+            fi;;
+        esac
+
+        shift
+    done
+
+    # get path to current dir, platform tree, and work tree
+    wd=`getcwd`
+    platTree=`findplattree ${wd}`;
+    if [ $? != 0 ]; then exitClean 1; fi
+    workTree=`findworktree ${platTree}`
+    if [ $? != 0 ]; then exitClean 1; fi
+
+    # extract subpath to current dir under platform tree
+    subPath=`echo ${wd} | sed "s?^${platTree}/*??"`
+
+    # Get list of enabled platforms. The "getsection" lists the
+    # entries in the "plats" section of the "${workTree}/admin/plats"
+    # file. The "sed" passes only those entries for which "yes" was
+    # specified and removes the "= yes" from each entry, leaving only
+    # the enabled platforms themselves.
+    #
+    plats=`getsection plats ${workTree}/admin/plats | sed -n 's/=.*yes//p'`
+
+    # for each enabled platform
+    for plat in ${plats}; do
+
+        # if subdir exists under platform tree
+        path=${workTree}/${plat}/${subPath}
+        if [ -d ${path} ]; then
+
+            # change to platform tree subdir
+            cd ${path}
+            if [ $? != 0 ]; then exitClean 1; fi
+
+            # Invoke "hmake" (use eval so shell processes any single
+            # quotes in ${makeArgs}).
+            #
+            stdOut Platform \"${plat}\"...
+            eval hmake ${makeArgs}
+            stdOut
+        fi
+    done
+
+    # clean up and exit
+    exitClean 0
+}
+
+# Clean up any resources that were reserved (temporary files, etc), then exit
+# with the passed exit status.
+#
+exitClean ()
+{
+    # exit with passed exit status (if not specified, default to 1)
+    exit ${1:-1}
+}
+
+# Show the passed message (if a message was specified),
+# followed by the usage extracted from the SYNOPSIS and
+# OPTIONS sections in the prologue at the top of this
+# script.
+#
+usage ()
+{
+    # first output any passed message
+    if [ $# -ne 0 ]; then stdErr "$*"; fi
+
+    # Extract usage from prologue at top of script and output it. The first
+    # "sed" outputs from the first line up to the "# DESCRIPTION" line (to
+    # limit how much of the script is parsed, for speed). The second "sed"
+    # extracts everything between SYNOPSIS and DESCRIPTION. The third "sed"
+    # eliminates the lines which begin with SYNOPSIS, DESCRIPTION, and
+    # OPTIONS. The last "sed" strips any '#' off the beginning of each
+    # line and eliminates blank lines.
+    #
+    stdErr "Usage:"
+    sed "/^# *DESCRIPTION/q" $0 | \
+        sed -n "/^# *SYNOPSIS/,/^# *DESCRIPTION/p" | \
+        sed -e "/^# *SYNOPSIS/d" -e "/^# *DESCRIPTION/d" -e "/^# *OPTIONS/d" | \
+        sed -e "s/^#//"  -e "/^ *$/d" 1>&2
+}
+
+# Output text to standard out.
+#
+stdOut ()
+{
+    echo "$*"
+}
+
+# Output text to standard error.
+#
+stdErr ()
+{
+    echo "$*" 1>&2
+}
+
+# Invoke the main body of the script. This must appear at the bottom of
+# the script so all functions are visible to main().
+#
+if [ $# != 0 ]; then
+    main "$@"
+else
+    main
+fi

@@ -1,0 +1,1 @@
+exec /usr/bin/od -tx1 -Ad -v $*
