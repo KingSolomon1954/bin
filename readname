@@ -1,0 +1,4 @@
+while read name; do
+    echo "Processing $name"
+    grep $name /tmp/opened-orig.log > /tmp/opened-$name.log
+done < /tmp/opened-users.log

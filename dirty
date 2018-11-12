@@ -1,0 +1,16 @@
+DIRS="main/src \
+      main/inc \
+      main/msg \
+      main/doc \
+      sim/src \
+      sim/inc \
+      sim/msg \
+      admin/mak \
+      samplefiles \
+      scripts \
+      logctrl/src \
+      tst/misc \
+      tst/dat \
+      prl/inc"
+
+exec -c ls -la ${DIRS} $(find docs -type d) $(find prl/src -type d) | grep '\-rw'

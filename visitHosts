@@ -91,10 +91,7 @@ proc doSsh {destHostIdx} {
     }
 
     if {$::wantCmd} {
-        send   -i $::spawnId "cd /tmp\r"
-        expect -i $::spawnId "# "
-        send   -i $::spawnId "$::cmd\r"
-        expect -i $::spawnId "# "
+        doSshCmd
     } else {
         doSshInteract
     }
@@ -104,10 +101,10 @@ proc doSsh {destHostIdx} {
 
 proc doSshLogin {ipAddr user passwd} {
     if {$::spawnId == 0} {
-        spawn ssh $user@$ipAddr
+        spawn ssh -o ServerAliveInterval=100 $user@$ipAddr
         set ::spawnId $spawn_id
     } else {
-        send -i $::spawnId "ssh $user@$ipAddr\r"
+        send -i $::spawnId "ssh -o ServerAliveInterval=100 $user@$ipAddr\r"
     }
 
     expect {
@@ -134,6 +131,12 @@ proc doSshLogin {ipAddr user passwd} {
             return $::error
         }
 
+        "VxWorks login: " {
+            # matches VxWorks login prompt
+            send -i $::spawnId "$user\r"
+            exp_continue
+        }
+
         "assword: " {
             send -i $::spawnId "$passwd\r"
             exp_continue
@@ -145,7 +148,13 @@ proc doSshLogin {ipAddr user passwd} {
         }
 
         "# " {
-            # matches shell prompt
+            # matches Linux shell prompt
+            set ::tgtHostOs "Linux"
+        }
+
+        -exact "->" {
+            # matches VxWorks shell prompt
+            set ::tgtHostOs "VxWorks"
         }
     }
     return $::success
@@ -153,13 +162,54 @@ proc doSshLogin {ipAddr user passwd} {
 
 # ------------------------------------------------------
 
+proc doSshCmd {} {
+    if {$::tgtHostOs == "Linux"} {
+        # Our starting dir is always /tmp
+        send   -i $::spawnId "cd /tmp\r"
+        expect -i $::spawnId "# "
+        send   -i $::spawnId "$::cmd\r"
+        expect -i $::spawnId -timeout 900 "# "
+    }
+
+    if {$::tgtHostOs == "VxWorks"} {
+        send   -i $::spawnId "$::cmd\r"
+        expect -i $::spawnId -timeout 900 -exact "->"
+    }
+}
+
+# ------------------------------------------------------
+
 proc doSshInteract {} {
-    send   -i $::spawnId "cd /tmp\r"
-    expect -i $::spawnId "# "
+    doCustomize
 
-    setupShellHowie
+    # Interact and timeout after 8 hours of inactivity
+    interact -i $::spawnId {
+        timeout 28800 {
+            puts "Inactivity Timeout (8 hours). visitHosts closing the connection."
+            return
+	}
+    }
+}
 
-    interact -i $::spawnId
+# ------------------------------------------------------
+
+proc doCustomize {} {
+    if {$::tgtHostOs == "Linux"} {
+        # Disable Linux auto-logout
+        send   -i $::spawnId "unset TMOUT\r"
+        expect -i $::spawnId "# "
+        # Our starting dir is always /tmp
+        send   -i $::spawnId "cd /tmp\r"
+        expect -i $::spawnId "# "
+
+        if {$::env(LOGNAME) == "hsolomon"} {
+            setupShellHowie
+	}
+    }
+
+    if {$::tgtHostOs == "VxWorks"} {
+        # No special action
+    }
 }
 
 # ------------------------------------------------------
@@ -179,11 +229,11 @@ proc setupShellHowie {} {
     send   -i $::spawnId "alias LL='ls -lsai -F --color=auto'\r"
     expect -i $::spawnId "# "
     
-    send   -i $::spawnId "bind '\"\\C-l\": kill-word'\r"
+    send   -i $::spawnId "if type -t bind; then bind '\"\\C-l\": kill-word'; fi > /dev/null\r"
     expect -i $::spawnId  "# "
-    send   -i $::spawnId "bind '\"\\C-j\": backward-char'\r"
+    send   -i $::spawnId "if type -t bind; then bind '\"\\C-j\": backward-char'; fi > /dev/null\r"
     expect -i $::spawnId "# "
-    send   -i $::spawnId "bind '\"\\C-g\": forward-word'\r"
+    send   -i $::spawnId "if type -t bind; then bind '\"\\C-g\": forward-word'; fi > /dev/null\r"
     expect -i $::spawnId "# "
 }
 
@@ -263,6 +313,7 @@ proc doScpXfer {ipAddr user passwd fileName} {
         send -i $::spawnId "scp $fileName $user@$ipAddr:/tmp\r"
     }
 
+    set xferDone False
     expect {
         -i $::spawnId
         -timeout 900
@@ -283,8 +334,14 @@ proc doScpXfer {ipAddr user passwd fileName} {
         }
 
         eof {
-            send_error "Connect to $user@$ipAddr failed"
-            return $::error
+            if { ! $xferDone} {
+                # Got an EOF but the file never transfered
+                send_error "Connect to $user@$ipAddr failed"
+                return $::error
+            }
+            # else success and fall out of expect call
+            # On single hops we'll get an EOF because the
+            # expect session terminates.
         }
 
         "assword: " {
@@ -298,7 +355,21 @@ proc doScpXfer {ipAddr user passwd fileName} {
         }
 
         "100%" {
-            # we are done
+            # scp may not be quite done, even though it indicates 100%
+            # matching this alone can result in "runt" files.
+            set xferDone True
+            exp_continue
+        }
+
+        "# " {
+            if { ! $xferDone} {
+                # Got a shell prompt but never saw 100%
+                send_error "Got shell prompt but no file transfer"
+                return $::error
+            }
+            # else success and fall out of expect call
+            # This is success in the case of multiple hops since
+            # we don't get an EOF because we stay in-session.
         }
     }
     return $::success
@@ -514,31 +585,40 @@ proc errorExit {s} {
 # in this table (first column) that should be used for the
 # intermediate hop/host.
 #
-#       Host Name        IP Address      Login  Password        Hop
+#      Host Name           IP Address        Login  Password       Hop
 set ::knownHosts [ list \
-      {DEV-NOC-NMS         192.168.250.50    root 12345            NoHop         } \
-      {DEV-NOC-NCS         192.168.250.50    root 12345            NoHop         } \
-      {DEV-NOC-BNG         192.168.250.50    root 12345            NoHop         } \
-      {DEV-NOC-DBS         192.168.250.50    root 12345            NoHop         } \
-      {DEV-MSGS1-NMS       192.168.104.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS1-DLC       192.168.104.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS1-IPE       192.168.104.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS1-NIU       192.168.104.95    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS1-EFLM      192.168.0.108     root 12345            DEV-NOC-NMS   } \
-      {DEV-MSGS1-RLP       192.168.104.112   root Arclight         NoHop         } \
-      {DEV-MSGS2-NMS       192.168.106.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS2-DLC       192.168.106.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS2-IPE       192.168.106.94    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS2-NIU       192.168.106.95    root Rootbft1Rootbft! DEV-NOC-NMS   } \
-      {DEV-MSGS2-EFLM      192.168.0.108     root 12345            DEV-NOC-NMS   } \
-      {DEV-MSGS2-RLP       192.168.106.112   root Arclight         NoHop         } \
-      {DEV-SGS4-DLC        192.168.115.63    root Rootbft1Rootbft! NoHop         } \
-      {DEV-SGS4-EQL        192.168.115.48    root 12345            NoHop         } \
-      {DEV-SGS4-NIU        192.168.115.65    root Rootbft1Rootbft! NoHop         } \
-      {DEV-SGS4-IPE1A      192.168.115.100   root Rootbft1Rootbft! NoHop         } \
-      {DEV-SGS4-IPE1B      192.168.115.102   root Rootbft1Rootbft! NoHop         } \
-      {DEV-SGS4-EFLM1A     192.168.115.108   root 12345            NoHop         } \
-      {DEV-SGS4-EFLM1B     192.168.115.109   root 12345            NoHop         } \
+      {DEV-MININ-NMS       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MININ-NCS       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MININ-BNG       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MININ-KMS       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MININ-TAC       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MININ-TTS       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MININ-DBS       192.168.250.50    root 12345            NoHop         } \
+      {DEV-MINIH-NMS       192.168.104.95    root Rootbft1Rootbft! DEV-MININ-NMS } \
+      {DEV-MINIH-DLC       192.168.104.94    root Rootbft1Rootbft! DEV-MININ-NMS } \
+      {DEV-MINIH-IPE       192.168.104.94    root Rootbft1Rootbft! DEV-MININ-NMS } \
+      {DEV-MINIH-NIU       192.168.104.95    root Rootbft1Rootbft! DEV-MININ-NMS } \
+      {DEV-MINIH-EFLM      192.168.0.108     root 12345            DEV-MINIH-DLC } \
+      {DEV-MINIH-RLP       192.168.104.112   root ArcLight         DEV-MINIH-NMS } \
+      {DEV-NOC4-NMS        192.168.173.17    root Rootbft1Rootbft! NoHop         } \
+      {DEV-NOC4-BNG        192.168.173.18    root Rootbft1Rootbft! NoHop         } \
+      {DEV-NOC4-KMS        192.168.173.19    root Rootbft1Rootbft! NoHop         } \
+      {DEV-NOC4-TAC        192.168.173.23    root Rootbft1Rootbft! NoHop         } \
+      {DEV-NOC4-TTS        192.168.173.25    root Rootbft1Rootbft! NoHop         } \
+      {DEV-N4H4-NMS        192.168.104.116   root Rootbft1Rootbft! DEV-NOC4-NMS  } \
+      {DEV-N4H4-DLC        192.168.104.118   root Rootbft1Rootbft! DEV-NOC4-NMS  } \
+      {DEV-N4H4-NIU        192.168.104.120   root Rootbft1Rootbft! DEV-NOC4-NMS  } \
+      {DEV-N4H4-IPE1A      192.168.104.68    root Rootbft1Rootbft! DEV-N4H4-NMS  } \
+      {DEV-N4H4-IPE1B      192.168.104.70    root Rootbft1Rootbft! DEV-N4H4-NMS  } \
+      {DEV-N4H4-EFLM1A     192.168.0.108     root 12345            DEV-N4H4-DLC  } \
+      {DEV-N4H4-EFLM1B     192.168.0.109     root 12345            DEV-N4H4-DLC  } \
+      {DEV-N4H4-EQL        192.168.0.51      root 12345            DEV-N4H4-NMS  } \
+      {DEV-N4H4-RLP1P      192.168.104.76    root ArcLight         DEV-N4H4-DLC  } \
+      {DEV-N4H4-RLP1S      192.168.104.78    root ArcLight         DEV-N4H4-DLC  } \
+      {DEV-N4H4-IPEV3K1A   192.168.104.20    root Rootbft1Rootbft! DEV-N4H4-NMS  } \
+      {DEV-N4H4-IPEV3K1B   192.168.104.22    root Rootbft1Rootbft! DEV-N4H4-NMS  } \
+      {DEV-N4H4-RLPV3K1A   192.168.104.24    root Rootbft1Rootbft! DEV-N4H4-NMS  } \
+      {DEV-N4H4-RLPV3K1A   192.168.104.25    root Rootbft1Rootbft! DEV-N4H4-NMS  } \
       {SI&T-NOC1-NMS       192.168.170.17    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-BNG       192.168.170.18    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-KMS1      192.168.170.19    root Rootbft1Rootbft! NoHop         } \
@@ -546,7 +626,6 @@ set ::knownHosts [ list \
       {SI&T-NOC1-V3K1      192.168.170.21    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-V3K2      192.168.170.22    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-TAC       192.168.170.23    root Rootbft1Rootbft! NoHop         } \
-      {SI&T-NOC1-TAG       192.168.170.24    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-TTS       192.168.170.25    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-NIU       192.168.170.26    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-DBS1      192.168.170.9     root Rootbft1Rootbft! NoHop         } \
@@ -556,111 +635,164 @@ set ::knownHosts [ list \
       {SI&T-NOC1-DBS5      192.168.170.13    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-DBS6      192.168.170.14    root Rootbft1Rootbft! NoHop         } \
       {SI&T-NOC1-DBS7      192.168.170.15    root Rootbft1Rootbft! NoHop         } \
-      {SI&T-HUB2-NMS       192.168.102.116   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-DLC       192.168.102.118   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-NIU       192.168.102.120   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE1A     192.168.102.68    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE1B     192.168.102.70    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE1C     192.168.102.72    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE1D     192.168.102.74    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM1A    192.168.0.108     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM1B    192.168.0.109     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM1C    192.168.0.110     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM1D    192.168.0.111     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP1P     192.168.102.76    root ArcLight         SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP1S     192.168.102.78    root ArcLight         SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE2A     192.168.102.80    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE2B     192.168.102.82    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE2C     192.168.102.84    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE2D     192.168.102.86    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB2-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM2A    192.168.0.136     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM2B    192.168.0.137     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM2C    192.168.0.138     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-EFLM2D    192.168.0.139     root 12345            SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP2P     192.168.102.88    root ArcLight         SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP2S     192.168.102.90    root ArcLight         SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB2-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-HUB2-NMS } \
-      {SI&T-HUB3-NMS       192.168.103.116   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-DLC       192.168.103.118   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-NIU       192.168.103.120   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE1A     192.168.103.68    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE1B     192.168.103.70    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE1C     192.168.103.72    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE1D     192.168.103.74    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM1A    192.168.0.108     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM1B    192.168.0.109     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM1C    192.168.0.110     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM1D    192.168.0.111     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP1P     192.168.103.76    root ArcLight         SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP1S     192.168.103.78    root ArcLight         SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE2A     192.168.103.80    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE2B     192.168.103.82    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE2C     192.168.103.84    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE2D     192.168.103.86    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB3-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM2A    192.168.0.136     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM2B    192.168.0.137     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM2C    192.168.0.138     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-EFLM2D    192.168.0.139     root 12345            SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP2P     192.168.103.88    root ArcLight         SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP2S     192.168.103.90    root ArcLight         SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB3-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-HUB3-NMS } \
-      {SI&T-HUB4-NMS       192.168.104.116   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-DLC       192.168.104.118   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-NIU       192.168.104.120   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE1A     192.168.104.68    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE1B     192.168.104.70    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE1C     192.168.104.72    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE1D     192.168.104.74    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM1A    192.168.0.108     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM1B    192.168.0.109     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM1C    192.168.0.110     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM1D    192.168.0.111     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP1P     192.168.104.76    root ArcLight         SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP1S     192.168.104.78    root ArcLight         SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE2A     192.168.104.80    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE2B     192.168.104.82    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE2C     192.168.104.84    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE2D     192.168.104.86    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
-      {SI&T-HUB4-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM2A    192.168.0.136     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM2B    192.168.0.137     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM2C    192.168.0.138     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-EFLM2D    192.168.0.139     root 12345            SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP2P     192.168.104.88    root ArcLight         SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP2S     192.168.104.90    root ArcLight         SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
-      {SI&T-HUB4-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-HUB4-NMS } \
+      {SI&T-N1H1-NMS       192.168.101.116   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H1-DLC       192.168.101.118   root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-NIU       192.168.101.120   root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1A     192.168.101.68    root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1B     192.168.101.70    root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1C     192.168.101.72    root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1D     192.168.101.74    root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-EFLM1A    192.168.0.108     root 12345            SI&T-N1H1-NMS } \
+      {SI&T-N1H1-EFLM1B    192.168.0.109     root 12345            SI&T-N1H1-NMS } \
+      {SI&T-N1H1-EFLM1C    192.168.0.110     root 12345            SI&T-N1H1-NMS } \
+      {SI&T-N1H1-EFLM1D    192.168.0.111     root 12345            SI&T-N1H1-NMS } \
+      {SI&T-N1H1-RLP1P     192.168.0.112     root ArcLight         SI&T-N1H1-DLC } \
+      {SI&T-N1H1-RLP1S     192.168.0.114     root ArcLight         SI&T-N1H1-DLC } \
+      {SI&T-N1H1-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE2A     192.168.101.80    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H1-IPE2B     192.168.101.82    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H1-IPE2C     192.168.101.84    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H1-IPE2D     192.168.101.86    root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H1-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-EFLM2A    192.168.0.136     root 12345            SI&T-N1H1-DLC } \
+      {SI&T-N1H1-EFLM2B    192.168.0.137     root 12345            SI&T-N1H1-DLC } \
+      {SI&T-N1H1-EFLM2C    192.168.0.138     root 12345            SI&T-N1H1-DLC } \
+      {SI&T-N1H1-EFLM2D    192.168.0.139     root 12345            SI&T-N1H1-DLC } \
+      {SI&T-N1H1-RLP2P     192.168.101.88    root ArcLight         SI&T-N1H1-NMS } \
+      {SI&T-N1H1-RLP2S     192.168.101.90    root ArcLight         SI&T-N1H1-NMS } \
+      {SI&T-N1H1-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H1-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-N1H1-NMS } \
+      {SI&T-N1H2-IHC       172.16.50.7       bftadmin Adminbft1    NoHop         } \
+      {SI&T-N1H2-NMS       192.168.102.116   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H2-DLC       192.168.102.118   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H2-NIU       192.168.102.120   root Rootbft1Rootbft! SI&T-NOC1-NMS } \
+      {SI&T-N1H2-IPE1A     192.168.102.68    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1B     192.168.102.70    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1C     192.168.102.72    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1D     192.168.102.74    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-EFLM1A    192.168.0.108     root 12345            SI&T-N1H2-NMS } \
+      {SI&T-N1H2-EFLM1B    192.168.0.109     root 12345            SI&T-N1H2-NMS } \
+      {SI&T-N1H2-EFLM1C    192.168.0.110     root 12345            SI&T-N1H2-NMS } \
+      {SI&T-N1H2-EFLM1D    192.168.0.111     root 12345            SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP1P     192.168.102.76    root ArcLight         SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP1S     192.168.102.78    root ArcLight         SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2A     192.168.102.80    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2B     192.168.102.82    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2C     192.168.102.84    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2D     192.168.102.86    root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-EFLM2A    192.168.0.136     root 12345            SI&T-N1H2-DLC } \
+      {SI&T-N1H2-EFLM2B    192.168.0.137     root 12345            SI&T-N1H2-DLC } \
+      {SI&T-N1H2-EFLM2C    192.168.0.138     root 12345            SI&T-N1H2-DLC } \
+      {SI&T-N1H2-EFLM2D    192.168.0.139     root 12345            SI&T-N1H2-DLC } \
+      {SI&T-N1H2-RLP2P     192.168.102.88    root ArcLight         SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP2S     192.168.102.90    root ArcLight         SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-N1H2-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-N1H2-NMS } \
+      {SI&T-NOC3-NMS       192.168.172.17    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-BNG       192.168.172.18    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-KMS1      192.168.172.19    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-KMS2      192.168.172.20    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-V3K1      192.168.172.21    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-V3K2      192.168.172.22    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-TAC       192.168.172.23    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-NOC3-TTS       192.168.172.25    root Rootbft1Rootbft! NoHop         } \
+      {SI&T-N3H3-IHC       192.168.250.146   bftadmin Adminbft1    NoHop         } \
+      {SI&T-N3H3-NMS       192.168.103.116   root Rootbft1Rootbft! SI&T-NOC3-NMS } \
+      {SI&T-N3H3-DLC       192.168.103.118   root Rootbft1Rootbft! SI&T-NOC3-NMS } \
+      {SI&T-N3H3-NIU       192.168.103.120   root Rootbft1Rootbft! SI&T-NOC3-NMS } \
+      {SI&T-N3H3-IPE1A     192.168.103.68    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1B     192.168.103.70    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1C     192.168.103.72    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1D     192.168.103.74    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-EFLM1A    192.168.0.108     root 12345            SI&T-N3H3-NMS } \
+      {SI&T-N3H3-EFLM1B    192.168.0.109     root 12345            SI&T-N3H3-NMS } \
+      {SI&T-N3H3-EFLM1C    192.168.0.110     root 12345            SI&T-N3H3-NMS } \
+      {SI&T-N3H3-EFLM1D    192.168.0.111     root 12345            SI&T-N3H3-NMS } \
+      {SI&T-N3H3-RLP1P     192.168.103.140   root ArcLight         SI&T-N3H3-NMS } \
+      {SI&T-N3H3-RLP1S     192.168.103.142   root ArcLight         SI&T-N3H3-NMS } \
+      {SI&T-N3H3-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2A     192.168.103.80    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2B     192.168.103.82    root Rootbft1Rootbft! SI&T-N3H3-NIU } \
+      {SI&T-N3H3-IPE2C     192.168.103.84    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2D     192.168.103.86    root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-N3H3-NMS } \
+      {SI&T-N3H3-EFLM2A    192.168.0.136     root 12345            SI&T-N3H3-DLC } \
+      {SI&T-N3H3-EFLM2B    192.168.0.137     root 12345            SI&T-N3H3-DLC } \
+      {SI&T-N3H3-EFLM2C    192.168.0.138     root 12345            SI&T-N3H3-DLC } \
+      {SI&T-N3H3-EFLM2D    192.168.0.139     root 12345            SI&T-N3H3-DLC } \
+      {SI&T-N3H3-RLP2P     192.168.103.88    root ArcLight         SI&T-N3H3-DLC } \
+      {SI&T-N3H3-RLP2S     192.168.103.90    root ArcLight         SI&T-N3H3-DLC } \
+      {SI&T-N3H3-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-N3H3-DLC } \
+      {SI&T-N3H3-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-N3H3-DLC } \
+      {SI&T-N3H4-NMS       192.168.104.116   root Rootbft1Rootbft! SI&T-NOC3-NMS } \
+      {SI&T-N3H4-DLC       192.168.104.118   root Rootbft1Rootbft! SI&T-NOC3-NMS } \
+      {SI&T-N3H4-NIU       192.168.104.120   root Rootbft1Rootbft! SI&T-NOC3-NMS } \
+      {SI&T-N3H4-IPE1A     192.168.104.68    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1B     192.168.104.70    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1C     192.168.104.72    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1D     192.168.104.74    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1AV3K  192.168.0.101     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1BV3K  192.168.0.103     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1CV3K  192.168.0.105     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE1DV3K  192.168.0.107     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-EFLM1A    192.168.0.108     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-EFLM1B    192.168.0.109     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-EFLM1C    192.168.0.110     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-EFLM1D    192.168.0.111     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP1P     192.168.104.76    root ArcLight         SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP1S     192.168.104.78    root ArcLight         SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP1PV3K  192.168.0.113     root Rootbft1Rootbft! SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP1SV3K  192.168.0.115     root Rootbft1Rootbft! SI&T-N3H4-DLC } \
+      {SI&T-N3H4-IPE2A     192.168.104.80    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2B     192.168.104.82    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2C     192.168.104.84    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2D     192.168.104.86    root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2AV3K  192.168.0.129     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2BV3K  192.168.0.131     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2CV3K  192.168.0.133     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-IPE2DV3K  192.168.0.135     root Rootbft1Rootbft! SI&T-N3H4-NMS } \
+      {SI&T-N3H4-EFLM2A    192.168.0.136     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-EFLM2B    192.168.0.137     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-EFLM2C    192.168.0.138     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-EFLM2D    192.168.0.139     root 12345            SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP2P     192.168.104.88    root ArcLight         SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP2S     192.168.104.90    root ArcLight         SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP2PV3K  192.168.0.141     root Rootbft1Rootbft! SI&T-N3H4-DLC } \
+      {SI&T-N3H4-RLP2SV3K  192.168.0.143     root Rootbft1Rootbft! SI&T-N3H4-DLC } \
+      {VMT-N4H4-577        172.16.68.9       root ViaSat           NoHop         } \
+      {VMT-N4H4-1198       172.16.68.1       root ViaSat           NoHop         } \
+      {VMT-N4H4-7095       172.16.68.17      root ViaSat           NoHop         } \
+      {VMT-N4H4-7105       172.16.68.25      root ViaSat           NoHop         } \
+      {VMT-MINIH-86        172.16.68.105     root ViaSat           NoHop         } \
+      {VMT-MINIH-1065      172.16.68.97      root ViaSat           NoHop         } \
+      {VMT-MINIH-1223      172.16.68.121     root ViaSat           NoHop         } \
+      {VMT-MINIH-1248      172.16.68.113     root ViaSat           NoHop         } \
 ]
 
 # ------------------------------------------------------
@@ -754,6 +886,7 @@ set ::wantCmd     false
 set ::scpFileName ""
 set ::cmd         ""
 set ::cmdLineHostList [ ]
+set ::tgtHostOs   ""
 
 processCmdLine
 loopOverCmdLineHosts

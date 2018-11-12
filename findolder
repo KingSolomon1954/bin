@@ -1,0 +1,4 @@
+# Find files older than 2 x 24hrs ago
+
+find . -type f -mtime 2
+
