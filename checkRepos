@@ -1,0 +1,12 @@
+#!/bin/bash
+
+dirs="$HOME/bin $HOME/lib $HOME/.bashdir $HOME/.emacs.d"
+
+cmd="od -x"
+
+for d in ${dirs}; do
+    cd $d
+    pwd
+    git fetch --dry-run
+done
+
