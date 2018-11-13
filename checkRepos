@@ -2,11 +2,46 @@
 
 dirs="$HOME/bin $HOME/lib $HOME/.bashdir $HOME/.emacs.d"
 
-cmd="od -x"
+doCheck=true
+doMerge=false
+doPull=false
+
+if [ "$1" = "-check" ]; then
+    doCheck=true
+fi
+if [ "$1" = "-merge" ]; then
+    doMerge=true
+    doCheck=false
+fi
+if [ "$1" = "-pull" ]; then
+    doPull=true
+    doCheck=false
+fi
 
 for d in ${dirs}; do
+    echo
     cd $d
-    pwd
-    git fetch --dry-run
+    echo ----- $(pwd) ----
+    if [ ${doCheck} = true ]; then
+        echo "> git remote -v update"
+                git remote -v update
+        echo "> git status | head -2 | tail -1"
+                git status | head -2 | tail -1
+        echo "> git log HEAD..origin/master --oneline"
+                git log HEAD..origin/master --oneline
+        echo "> git diff --name-only origin/master"
+                git diff --name-only origin/master
+    fi
+    if [ ${doMerge} = true ]; then
+        echo "> git merge origin/master"
+                git merge origin/master
+        echo "> git status"
+                git status
+    fi
+    if [ ${doPull} = true ]; then
+        echo "> git pull"
+                git pull
+        echo "> git status"
+                git status
+    fi
 done
-
