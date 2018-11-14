@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# $1 is submodule path
+
+# Assumes we're starting in a component's top folder.
+
+# Goto submodule folder
+echo cd $1
+cd $1
+
+# freshly populate local submodule repo
+echo git fetch                            
+git fetch                            
+
+# examine commits, obtain hash code, assuming it's from latest commit
+hash=$(git log --oneline origin/master -1 | awk '{ print $1 }')
+echo hash = ${hash}
+
+# Update workspace to hash
+echo git checkout -q ${hash}
+git checkout -q ${hash}
+
+# back to parent top folder
+echo cd - 
+cd - 
+
+# parent needs to know of changed submodule
+echo git add $1
+git add $1
+
+# commit 
+echo git commit -m "Updated submodule $1 to latest commit: ${hash}."
+git commit -m "Updated submodule $1 to latest commit: ${hash}."
+
+# publish it
+echo git push
+git push

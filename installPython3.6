@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# FILE
+#	installPython3.6
+#
+# SYNOPSIS
+#	installPython3.6
+#
+# DESCRIPTION
+#	installs Python 3.6 and pip3 onto current host.
+#	
+# OPTIONS
+#	none
+#
+# EXAMPLE
+#	installPython3.6
+# 
+# ENVIRONMENT
+#	LinuxMint
+#
+# BUGS
+#
+# -----------------------------------------------------------
+
+CI1 ()
+{
+    # arg 1 - Source file name to check in
+    # arg 2 - File name holding comments for RCS log file
+    # arg 3 - File name holding e-mail comments
+
+    rcs_stderr=/tmp/rcs_stderr$$
+    full_msg_file=/tmp/full_msg_file$$
+    success=0
+
+    # Formulate the checkin label. See if there is file
+    # called .label. If so, it contains the label to use
+    # for checkin/out, RCS is a bit asymmetric here in that
+    # issuing a ci -r with no label does not perform a
+    # checkin on the default branch. Have to assume -r1 is
+    # the default trunk. Yuk.
+
+    label=""
+    ciflag="-r1"
+    if [ -f .label ]; then
+        label=`cat .label`
+        if [ "$label" != "" ]; then
+            ciflag="-r"
+        fi
+    fi
+
+    # Based on the return code from rcs_find() we can tell if
+    # we're in a clone tree and if the RCS file already exists.
+
+    rcs_find $1
+    ret_val=$?
+    if [ ${ret_val} -eq 1 ]; then
+        # Missing "RCSTREE" file, can't continue
+        return 1
+    fi
+
+    if [ ${ret_val} -eq 0 ]; then
+        # No error from rcs_find(). Typical case, file 
+        # exists. Check it in specifying the label.
+        if ci ${ciflag}${label} $RCS < $2 > ${rcs_stderr} 2>&1 ; then
+            success=1
+        fi
+    fi
+
+    if [ ${ret_val} -eq 2 ]; then
+        # It's a new file not currently in RCS.
+        # We must handle it differently because we can't
+        # checkin a file specifying a label since the
+        # file and label doesn't yet exist in RCS. Note that 
+        # the main trunk is labeled with whatever is in the
+        # label file.
+        cp $1 rcstree
+        echo "Adding new file to RCS..."
+        if ci rcstree/$1 < $2 > ${rcs_stderr} 2>&1 ; then
+            rcs -n${label}:1 rcstree/$1
+            success=1
+            # Safe to delete the file now
+            rm $1
+        fi
+    fi
+
+    if [ ${success} -eq 1 ]; then
+        # Check out the file in the RCS tree.
+        co -r${label} rcstree/$1
+
+        # Restore our link to the RCS tree.
+        /bin/ln -s rcstree/$1 $1
+
+        # Formulate the full email msg to developers
+        cat ${rcs_stderr} $2 $3 > ${full_msg_file}
+
+        subject="RCS Checkin: $1"
+        if [ -f /usr/ucb/mail ] ; then
+            /usr/ucb/mail -s "$subject" ${RCSMAIL:-networkgroup} < ${full_msg_file}
+        elif [ -f /bin/mail ] ; then
+            /bin/mail -s "$subject" ${RCSMAIL:-networkgroup} < ${full_msg_file}
+        else
+            echo "No /usr/ucb/mail or /bin/mail"
+            echo "Skipping email."
+        fi
+
+    else 
+        cat ${rcs_stderr}  # Show why it was unsuccessful
+        echo "Checkin failed, bailing..."
+    fi
+
+    rm -f ${rcs_stderr} ${full_msg_file}
+}
+
+# -----------------------------------------------------------
+
+haveYum=0
+haveApt=0
+havePython36=0
+type -t yum > /dev/null && haveYum=1
+type -t apt > /dev/null && haveApt=1
+type -t python3.6 > /dev/null && havePython36=1
+
+
+if [ $haveYum -eq 0 ] && [ $haveApt -eq 0 ]; then
+    echo Nothing
+    exit 1
+fi
+
+echo havePython36 = $havePython36
+
+sudo -H apt-get install python3.6
+sudo -H apt-get install python3-pip
+sudo -H python3.6 -m pip install --upgrade pip
+sudo -H pip3.6 install setuptools
+sudo -H pip3.6 install urllib3
+sudo -H pip3.6 install hug
+sudo -H pip3.6 install waitress
+
+echo "Found something"
+
+# -----------------------------------------------------------
+
+# end file
