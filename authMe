@@ -1,0 +1,9 @@
+#!/bin/bash
+#
+# Example: authMe <hostname>
+
+if [ ! -f ~/.ssh/id_rsa.pub ]; then
+    echo 'id_rsa.pub does not exist, creating'
+    ssh-keygen -trsa
+fi
+ssh $1 'cat >>.ssh/authorized_keys' <~/.ssh/id_rsa.pub
