@@ -2,20 +2,35 @@
 
 dirs="$HOME/bin $HOME/lib $HOME/.bashdir $HOME/.emacs.d"
 
+# Defaults if no args
 doCheck=true
 doMerge=false
 doPull=false
+doStatus=false
 
 if [ "$1" = "-check" ]; then
     doCheck=true
+    doMerge=false
+    doPull=false
+    doStatus=false
 fi
 if [ "$1" = "-merge" ]; then
-    doMerge=true
     doCheck=false
+    doMerge=true
+    doPull=false
+    doStatus=false
 fi
 if [ "$1" = "-pull" ]; then
-    doPull=true
     doCheck=false
+    doMerge=false
+    doPull=true
+    doStatus=false
+fi
+if [ "$1" = "-status" ]; then
+    doCheck=false
+    doMerge=false
+    doPull=false
+    doStatus=true
 fi
 
 for d in ${dirs}; do
@@ -41,6 +56,10 @@ for d in ${dirs}; do
     if [ ${doPull} = true ]; then
         echo "> git pull"
                 git pull
+        echo "> git status"
+                git status
+    fi
+    if [ ${doStatus} = true ]; then
         echo "> git status"
                 git status
     fi
