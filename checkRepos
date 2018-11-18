@@ -35,8 +35,8 @@ fi
 
 for d in ${dirs}; do
     echo
-    cd $d
-    echo ----- $(pwd) ----
+    cd "$d"
+    echo ----- "$(pwd)" ----
     if [ ${doCheck} = true ]; then
         echo "> git remote -v update"
                 git remote -v update
