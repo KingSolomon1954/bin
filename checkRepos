@@ -8,6 +8,8 @@ doMerge=false
 doPull=false
 doStatus=false
 
+saveCwd=${CWD}
+
 if [ "$1" = "-check" ]; then
     doCheck=true
     doMerge=false
@@ -64,3 +66,5 @@ for d in ${dirs}; do
                 git status
     fi
 done
+
+cd ${saveCwd}
