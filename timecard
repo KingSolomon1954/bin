@@ -1,0 +1,9 @@
+cat << 'TheEnd'
+
+IV00000        0 Vacation
+IH00000        0 Holiday
+IP00000        0 Personal
+
+I700800 - 16   Interviews/Recruiting
+
+TheEnd
