@@ -1,9 +1,16 @@
 cat << 'TheEnd'
 
+C203223-ComMob DevOps Internal SW Dev AMX
+C203223-ComMob DevOps Internal SW Dev OTA.
+C203223-ComMob DevOps Internal SW Dev Management
+8468189-ComMob DevOps OpEx Support  IFC-IFC
+
+I700800-Interviews/Recruiting 16 CMOB
+I700900-other                 16 CMOB all-hands?
+
 IV00000        0 Vacation
 IH00000        0 Holiday
 IP00000        0 Personal
 
-I700800 - 16   Interviews/Recruiting
 
 TheEnd
