@@ -13,7 +13,7 @@
 # done
 
 tmpFile=/tmp/tree$$
-find . ! -name CVS -type d -print > ${tmpFile}
+find . -type d -not -path "*.git*" -print  > ${tmpFile}
 topDir=$(pwd)
 while read dir; do
     # echo Before: ${dir}
