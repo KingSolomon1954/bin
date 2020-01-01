@@ -1,4 +1,4 @@
 # Start a long job in the background, save standard
 # out and error in single logfile.
 
-"$@" > ~/log/logfile 2>&1 &
+"$@" > ~/admin/logs/logfile 2>&1 &
