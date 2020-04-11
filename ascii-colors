@@ -1,0 +1,19 @@
+cat << 'TheEnd'
+The Select Graphic Rendition subset
+# See https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
+# See https://gist.github.com/XVilka/8346728
+
+Test for truecolor in a terminal:
+
+  printf "\x1b[38;2;255;100;0mTRUECOLOR\x1b[0m\n"
+
+Foreground ESC[38;5;#m
+Background ESC[48;5;#m
+Reset      ESC[0m
+
+For 256 bit color
+  echo -e "\033[38;5;206m"     # That is, \033[38;5;<FG COLOR>m
+  echo -e "\033[48;5;57m"      # That is, \033[48;5;<BG COLOR>m
+  echo -e "\033[0m"            # Reset
+
+TheEnd
