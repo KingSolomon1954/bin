@@ -1,0 +1,24 @@
+cat <<'EndBlock'
+@ is alias for HEAD
+Previous 1 version: @^   or @~
+Previous 2 version: @^^  or @~~
+Previous 3 version: @~3
+
+Diff entire commit:
+
+    git diff @^
+    git diff HEAD^
+    git diff commit_id
+
+Diff by file:
+
+    git diff @~3 -- README.md  # 3 versions back
+
+Show log message plus a diff for each commit that touched the named file
+
+    git log -p <filename>
+
+Show differences to the previous version, ask for just one step in log history:
+
+    git log -1 -p <filename>
+EndBlock
