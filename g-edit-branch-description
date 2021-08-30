@@ -1,0 +1,24 @@
+#!/bin/bash
+
+SD="Opens editor to set the current branch description"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/}"
+    echo "    options: none"
+    exit 1
+fi
+
+echo "git branch --edit-description"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git branch --edit-description

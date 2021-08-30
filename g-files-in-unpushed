@@ -1,0 +1,23 @@
+#!/bin/bash
+
+SD="List the updated files in as yet unpushed commits"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "Usage:"
+    echo "${0##*/}"
+    echo "    options: none"
+    exit 1
+fi
+
+echo "git log --name-only origin/master..HEAD"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git log --name-only origin/master..HEAD

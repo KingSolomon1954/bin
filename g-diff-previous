@@ -1,0 +1,32 @@
+#!/bin/bash
+
+SD="Diff + log message for previous commits touching given file"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/} <filename> [num commits back]"
+    echo "    filename required"
+    echo "    defaults to previous commit (1)"
+    echo "    2 mean 2 commits back, etc"
+    exit 1
+fi
+
+nBack=1
+if [ "$2" != "" ]; then
+    nBack=$2
+fi
+
+echo "git log -${nBack} -p $1"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git log -${nBack} -p $1
+

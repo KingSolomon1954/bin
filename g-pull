@@ -1,0 +1,28 @@
+#!/bin/bash
+
+SD="Pull main repo and update all submodules automatically"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/} [options]"
+    echo "    option to git pull cmd"
+    exit 1
+fi
+
+echo "git pull "$@" && \
+    git submodule sync --recursive && \
+    git submodule update --init --recursive"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git pull "$@" && \
+    git submodule sync --recursive && \
+    git submodule update --init --recursive

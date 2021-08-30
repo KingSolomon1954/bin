@@ -1,0 +1,25 @@
+#!/bin/bash
+
+SD="Visit each submodule show status"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/}"
+    echo "    No options"
+    exit 1
+fi
+
+echo "git submodule foreach git status"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git submodule foreach git status
+

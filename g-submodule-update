@@ -1,0 +1,24 @@
+#!/bin/bash
+
+SD="Update submodule"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/} [submodules...]"
+    echo "    submodules or leave blank for all"
+    exit 1
+fi
+
+echo "git submodule update --init --recursive $@"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git submodule update --init --recursive "$@"

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+SD="Diff by file and version"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/} <file name> [version]"
+    echo "    file name"
+    echo "    optional version, empty means previous version"
+    exit 1
+fi
+
+ver=3
+if [ "$2" != "" ]; then
+    ver=$2
+fi
+
+echo "git diff @~${ver} -- $1"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git diff @~${ver} -- $1
+

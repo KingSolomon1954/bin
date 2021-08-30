@@ -1,0 +1,25 @@
+#!/bin/bash
+
+SD="Clone resursive with submodules in parallel"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/} <repo> [folder]"
+    echo "    see git clone cmd"
+    exit 1
+fi
+
+echo "git clone --recurse-submodules --remote-submodules -j 6 $@"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git clone --recurse-submodules --remote-submodules -j 6 "$@"
+
