@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Prefer to use !/bin/bash but if scripts are to run on w/MacOS
+# they need to !/usr/bin/env bash to avoid outdated Apple utils.
 
 SD="Clone resursive with submodules in parallel"
 
