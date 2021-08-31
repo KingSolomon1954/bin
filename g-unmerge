@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Prefer to use !/bin/bash but if scripts are to run on w/MacOS
+# they need to !/usr/bin/env bash to avoid outdated Apple utils.
+
+SD=""
+SD="${SD}When we do git merge and then git unmerge right away,\n"
+SD="${SD}we will go back to the repository state from before\n"
+SD="${SD}the merge. No files will be found in the index after\n"
+SD="${SD}the command, and if we did some merge conflicts resolution\n"
+SD="${SD}– it will be lost. It’s important to know that we can do\n"
+SD="${SD}unmerge safely only right after the merge."
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo -e "${SD}"
+    echo "Usage:"
+    echo "${0##*/}"
+    echo "    No options"
+    exit 1
+fi
+
+echo "git --hard ORIG_HEAD"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git reset --hard ORIG_HEAD

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Prefer to use !/bin/bash but if scripts are to run on w/MacOS
+# they need to !/usr/bin/env bash to avoid outdated Apple utils.
+
+SD="Remove the last commit, changes go back to the index, nothing will be lost"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/}"
+    echo "    No options"
+    exit 1
+fi
+
+echo "git reset --soft HEAD~1"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git reset --soft HEAD~1
