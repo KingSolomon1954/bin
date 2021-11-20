@@ -17,11 +17,11 @@ if [ -v showHelp ]; then
     exit 1
 fi
 
-echo "git clone --recurse-submodules --remote-submodules -j 6 $@"
+echo "git clone --recurse-submodules -j 6 $@"
 
 if [ -v showCmdOnly ]; then
     exit 1
 fi
 
-git clone --recurse-submodules --remote-submodules -j 6 "$@"
+git clone --recurse-submodules -j 6 "$@"
 
