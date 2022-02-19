@@ -2,7 +2,7 @@
 # Prefer to use !/bin/bash but if scripts are to run on w/MacOS
 # they need to !/usr/bin/env bash to avoid outdated Apple utils.
 
-SD="Diff by file and version"
+SD="Diff file you modified but but haven’t yet run git add"
 
 case "$1" in
     "-h") showHelp=1;    shift;;
@@ -12,22 +12,14 @@ esac
 if [ -v showHelp ]; then
     echo "${SD}"
     echo "Usage:"
-    echo "${0##*/} <file name> [version]"
-    echo "    file name"
-    echo "    optional version, empty means previous version"
+    echo "${0##*/} <file name>"
     exit 1
 fi
 
-ver=3
-if [ "$2" != "" ]; then
-    ver=$2
-fi
-
-echo "git diff @~${ver} -- $1"
+echo "git diff $1"
 
 if [ -v showCmdOnly ]; then
     exit 1
 fi
 
-git diff @~${ver} -- $1
-
+git diff $1

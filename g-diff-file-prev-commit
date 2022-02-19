@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Prefer to use !/bin/bash but if scripts are to run on w/MacOS
+# they need to !/usr/bin/env bash to avoid outdated Apple utils.
+
+SD="Diff file against previous commited version"
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/} <file name>"
+    exit 1
+fi
+
+git diff HEAD@{1} $1
+
+exit 0
+
+# echo "git diff @~${ver} -- $1"
+echo "ver=\$(git log --skip=1 --format=%h Readme.adoc | head -1)"
+echo "git diff HEAD \${ver} \$1"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+# Use git log to get a list of recent commits for file.
+# Skip the first commit which is the current head.
+# Interested in first line (which is previous commit) so use head -1.
+# Use format to output only the commit id.
+# Grab commit id into shell variable.
+
+ver=$(git log --skip=1 --format=%h Readme.adoc | head -1)
+if [ -n "${ver}" ]; then
+    git diff HEAD ${ver} $1
+else
+    echo "No previous commit ID"
+fi
