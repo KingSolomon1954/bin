@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Prefer to use !/bin/bash but if scripts are to run on w/MacOS
+# they need to !/usr/bin/env bash to avoid outdated Apple utils.
+
+SD="Bring local branch up to date with master branch.
+Fetches master and performs a rebase, replaying local 
+commits on top of the tip of master."
+
+case "$1" in
+    "-h") showHelp=1;    shift;;
+    "-n") showCmdOnly=1; shift;;
+esac
+
+if [ -v showHelp ]; then
+    echo "${SD}"
+    echo "Usage:"
+    echo "${0##*/}"
+    exit 1
+fi
+
+mainbranch=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+
+echo "git pull origin ${mainbranch} --rebase"
+
+if [ -v showCmdOnly ]; then
+    exit 1
+fi
+
+git pull origin ${mainbranch} --rebase
+
