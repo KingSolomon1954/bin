@@ -2,7 +2,7 @@
 # Prefer to use !/bin/bash but if scripts are to run on w/MacOS
 # they need to !/usr/bin/env bash to avoid outdated Apple utils.
 
-SD="Pull and update all submodules automatically to agree with parent"
+SD="Diff file by version"
 
 case "$1" in
     "-h") showHelp=1;    shift;;
@@ -12,15 +12,15 @@ esac
 if [ -v showHelp ]; then
     echo "${SD}"
     echo "Usage:"
-    echo "${0##*/} [options]"
-    echo "    option to git pull cmd"
+    echo "${0##*/} <version number> <file name>"
+    echo "eg: g-diff-file-version 2 docs-src/conf.py # 2nd prev change"
     exit 1
 fi
 
-echo "git pull "$@" && git submodule update --recursive"
+echo "git diff @{$1} -- $2"
 
 if [ -v showCmdOnly ]; then
     exit 1
 fi
 
-git pull "$@" && git submodule update --init --recursive
+git diff @{$1} -- $2

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Prefer to use !/bin/bash but if scripts are to run on w/MacOS
+# they need to !/usr/bin/env bash to avoid outdated Apple utils.
+
+_NAW06BFTU1801="192.168.250.23"
+_NAW06BFTU1802="192.168.250.24"
+_NAW06BFTU2001="192.168.250.42"
+
+#howie
+exec ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=9999 hsolomon@${_NAW06BFTU2001}
+
+unset _NAW06BFTU1801
+unset _NAW06BFTU1802
+unset _NAW06BFTU2001
