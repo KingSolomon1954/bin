@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# Run this from ~/dev/proj/sgn
+# Creates GPATH GRTAGS and GTAGS in ~/dev/proj/sgn
+
+cd ~/dev/proj/sgn
+find sgn-sample-app-cpp/main lib-cpp-framework/sgn-framework \
+     -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | gtags
+cd -

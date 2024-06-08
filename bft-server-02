@@ -5,6 +5,7 @@
 _NAW06BFTU1801="192.168.250.23"
 _NAW06BFTU1802="192.168.250.24"
 
+# Use corporate password for login
 exec ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=9999 hsolomon@${_NAW06BFTU1802}
 
 unset _NAW06BFTU1801
