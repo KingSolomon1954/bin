@@ -1,9 +1,32 @@
 #!/usr/bin/env bash
-
-# Run this from ~/dev/proj/sgn
+#
+# $1 = application name and source
+# if not supplied defaults to sgn-sample-app-cpp/main
+#
+# gtags-sgn fl-bdvb-framer/main
+#
+# Run this from anywhere
+# cd's into ~/dev/proj/sgn and back after running
 # Creates GPATH GRTAGS and GTAGS in ~/dev/proj/sgn
 
+app="$1"
+if [ -z "${app}" ]; then
+    app="sgn-sample-app-cpp/main"
+fi
+
+libs="lib-cpp-gen/sgn-gen
+      lib-cpp-framework/sgn-framework
+      lib-cpp-grpc/sgn-grpc
+      lib-cpp-udp/sgn-udp
+      lib-cpp-transport/sgn-transport
+      lib-cpp-sdp-structs/sgn-sdp-structs
+      lib-cpp-ota/sgn-ota
+      lib-cpp-difi-pkt/sgn-difi-pkt
+      lib-cpp-pkt-wrappers/sgn-pkt-wrappers"
+
 cd ~/dev/proj/sgn
-find sgn-sample-app-cpp/main lib-cpp-framework/sgn-framework \
+# echo "find ${app} ${libs} \
+#      -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | gtags -f - "
+find ${app} ${libs} \
      -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | gtags -f -
 cd -
