@@ -5,11 +5,11 @@ apt-cache search info | grep -- '-doc '
 sudo apt-get install bash-doc
 sudo apt-get install cpp-doc
 sudo apt-get install gcc-doc
+sudo apt-get install make-doc
 sudo apt-get install binutils-doc
+sudo apt-get install gawk-doc
 sudo apt-get install tar-doc
 sudo apt-get install python3-doc
 sudo apt-get install org-mode-doc
-
-
 
 TheEnd

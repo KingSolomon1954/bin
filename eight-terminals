@@ -1,0 +1,24 @@
+
+gnome-terminal --geometry=80x27+4656+0    --title="1 Left Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x27+4656+549  --title="2 Left Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x26+4656+1096 --title="3 Left Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x26+4656+1664 --title="4 Left Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x27+5473+0    --title="5 Right Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x27+5473+549  --title="6 Right Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x26+5473+1096 --title="7 Right Col"
+sleep 0.5
+
+gnome-terminal --geometry=80x26+5473+1664 --title="8 Right Col"
+sleep 0.5

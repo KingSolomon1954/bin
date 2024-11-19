@@ -1,0 +1,9 @@
+cat << 'TheEnd'
+
+docker run --volume=$(pwd):/work pandoc/pdf /work/_site/system-rates-between-sites.html -t pdf -o /work/_site/rates.pdf
+docker run --volume=$(pwd):/work pandoc/pdf -h
+docker run --volume=$(pwd):/work pandoc/core -h
+docker run --volume=$(pwd):/work pandoc/core /work/_site/system-terminals.html -f html -t pdf -o /work/_site/rates.pdf
+docker run --volume=$(pwd):/work pandoc/core -s /work/estimate.adoc -t pdf -o /work/estimate.pdf
+
+TheEnd
