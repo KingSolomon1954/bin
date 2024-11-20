@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# This runs as one of the last steps in .bashrc. 
+# The purpose is to setup and sync the correct history file
+# with this particular terminal window. Based on the window's
+# title, we figure out which history file to use.
+
 # Grab current window id using xdpyinfo
 str=$(xdpyinfo | grep focus)
 
@@ -7,8 +12,8 @@ str=$(xdpyinfo | grep focus)
 #
 #     focus:  window 0x3c0015e, revert to Parent
 #
-# When it says revert to parent, the window we're interested in,
-# is one off from this window.
+# When it says revert to parent, the window we're interested
+# in is one less than the focused window, which is the parent.
 
 # Grab the window id field
 hexVal=$(echo $str | awk '{print $3}' )
@@ -22,16 +27,18 @@ hexVal=${hexVal%%,}
 # Subtract 1 to obtain the parent windowId
 printf -v windowId '%#x' "$(( hexVal - 1 ))"
 
-# Need a leading 0 between the 'x' and the '3' in order to
-# match the output of wmctrl.
+# Need a leading 0 after the 0x and the hex number in order
+# to match the output of wmctrl. So turn this 0x3c0015e into
+# 0x03c0015e. If length of hex string is 9, then it needs a 0.
+#
 if [[ ${#windowId} -eq 9 ]]; then
     windowId=${windowId/0x/0x0}
 fi
 
 # echo "Window ID: $hexVal $windowId"
 
-# Now we're able to look at output of wmctrl -l and locate 
-# the current window by id, which has the title.
+# Now we're able to look at the output of wmctrl -l and locate 
+# the listing for the current window by id and obtain the title.
 #
 wmctrlListing=$(wmctrl -l | grep ${windowId})
 
@@ -43,8 +50,11 @@ title=${title#"${title%%[![:space:]]*}"}
 
 # echo "Window Title:$title"
 
-# Just want the number from the title
-# Eliminate all except the first word
+# Just want the number from the window title. This agrees
+# with how the eight-terminals script named the windows.
+# Eliminate all except the first word, which is a number
+# 1 through 8.
+#
 num=${title%% *}
 
 # echo "Window Number from Title:$num"
