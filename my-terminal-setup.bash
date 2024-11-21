@@ -61,7 +61,7 @@ num=${title%% *}
 
 case $num in
     1|2|3|4|5|6|7|8)
-        hist_sync $num
+        hist_file $num
         cdr
         cdg;;
 esac
